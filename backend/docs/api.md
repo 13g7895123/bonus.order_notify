@@ -77,7 +77,20 @@ Base URL: `http://localhost:8081/api`
 
 ### Get Settings
 - **Endpoint**: `GET /settings`
+- **Response**:
+  ```json
+  {
+    "line_channel_secret": "...",
+    "line_channel_access_token": "..."
+  }
+  ```
 
 ### Update Settings
 - **Endpoint**: `POST /settings`
-- **Body**: `{ "key": "value" }`
+- **Body**:
+  ```json
+  {
+    "line_channel_secret": "your_channel_secret",
+    "line_channel_access_token": "your_channel_access_token"
+  }
+  ```

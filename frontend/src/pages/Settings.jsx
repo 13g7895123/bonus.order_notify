@@ -6,7 +6,8 @@ import Input from '../components/ui/Input';
 import { Save } from 'lucide-react';
 
 const Settings = () => {
-    const [token, setToken] = useState('');
+    const [channelSecret, setChannelSecret] = useState('');
+    const [channelAccessToken, setChannelAccessToken] = useState('');
     const [saved, setSaved] = useState(false);
 
     useEffect(() => {
@@ -15,30 +16,42 @@ const Settings = () => {
 
     const loadSettings = async () => {
         const data = await api.settings.get();
-        if (data.line_usage_token) setToken(data.line_usage_token);
+        if (data.line_channel_secret) setChannelSecret(data.line_channel_secret);
+        if (data.line_channel_access_token) setChannelAccessToken(data.line_channel_access_token);
     };
 
     const handleSave = async () => {
-        await api.settings.update({ line_usage_token: token });
+        await api.settings.update({
+            line_channel_secret: channelSecret,
+            line_channel_access_token: channelAccessToken
+        });
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
     };
+
     return (
         <div>
             <div className="flex justify-between items-center" style={{ marginBottom: '2rem' }}>
                 <div>
                     <h1 style={{ fontSize: '2rem', fontWeight: 'bold' }}>系統設定</h1>
-                    <p style={{ color: 'var(--text-secondary)' }}>設定系統參數。</p>
+                    <p style={{ color: 'var(--text-secondary)' }}>設定 LINE Message API 相關參數。</p>
                 </div>
             </div>
 
-            <Card title="LINE API 設定">
+            <Card title="LINE Message API 設定">
+                <Input
+                    label="Channel Secret"
+                    type="password"
+                    value={channelSecret}
+                    onChange={e => setChannelSecret(e.target.value)}
+                    placeholder="請輸入 Channel Secret"
+                />
                 <Input
                     label="Channel Access Token"
                     type="password"
-                    value={token}
-                    onChange={e => setToken(e.target.value)}
-                    placeholder="請在此貼上您的 Channel Access Token"
+                    value={channelAccessToken}
+                    onChange={e => setChannelAccessToken(e.target.value)}
+                    placeholder="請輸入 Channel Access Token"
                 />
                 <div className="flex justify-end gap-2 items-center">
                     {saved && <span style={{ color: 'var(--success)' }}>已儲存！</span>}
