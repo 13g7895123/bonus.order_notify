@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../services/api';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
-import { Send, CheckCircle, AlertCircle, Upload, Users, Info, Settings, X, Eye } from 'lucide-react';
+import { Send, CheckCircle, AlertCircle, Upload, Users, Info, Settings, X, Eye, Search } from 'lucide-react';
 
 const SendNotification = () => {
     const [templates, setTemplates] = useState([]);
@@ -14,7 +14,8 @@ const SendNotification = () => {
     const [uploading, setUploading] = useState(false);
 
     // Import Data State
-    const [importData, setImportData] = useState(null); // { headers: [], matched: [ {id, row_data} ], not_found: [] }
+    const [importData, setImportData] = useState(null); // { headers: [], matched: [], not_found: [] }
+    const [searchTerm, setSearchTerm] = useState('');
 
     // Variable Support
     const [variables, setVariables] = useState([]);
@@ -98,7 +99,8 @@ const SendNotification = () => {
         const t = await api.templates.list();
         setTemplates(t);
         const c = await api.customers.list();
-        setCustomers(c);
+        // Ensure IDs are numbers
+        setCustomers(c.map(cust => ({ ...cust, id: Number(cust.id) })));
     };
 
     const handlePreSend = () => {
@@ -141,8 +143,8 @@ const SendNotification = () => {
         selectedCustomers.forEach(cid => {
             const recipient = { id: cid, variables: {} };
 
-            // Check if this customer is in import matched list
-            const imported = importData?.matched?.find(m => m.id === cid);
+            // Check if this customer is in import matched list (ensure ID match)
+            const imported = importData?.matched?.find(m => Number(m.id) === Number(cid));
 
             variables.forEach(v => {
                 const header = variableMapping[v];
@@ -189,11 +191,12 @@ const SendNotification = () => {
 
             // Auto-select matched customers
             if (res.matched && res.matched.length > 0) {
-                const matchedIds = res.matched.map(c => c.id);
+                const matchedIds = res.matched.map(c => Number(c.id));
                 // Merge matched IDs with current selection avoiding duplicates
                 setSelectedCustomers(prev => {
-                    const merged = [...new Set([...prev, ...matchedIds])];
-                    return merged;
+                    // Ensure prev are numbers too
+                    const prevNums = prev.map(p => Number(p));
+                    return [...new Set([...prevNums, ...matchedIds])];
                 });
             }
         } catch (e) {
@@ -205,10 +208,11 @@ const SendNotification = () => {
     };
 
     const toggleCustomer = (id) => {
-        if (selectedCustomers.includes(id)) {
-            setSelectedCustomers(selectedCustomers.filter(cid => cid !== id));
+        const numId = Number(id);
+        if (selectedCustomers.includes(numId)) {
+            setSelectedCustomers(selectedCustomers.filter(cid => cid !== numId));
         } else {
-            setSelectedCustomers([...selectedCustomers, id]);
+            setSelectedCustomers([...selectedCustomers, numId]);
         }
     };
 
@@ -485,6 +489,25 @@ const SendNotification = () => {
                             </div>
                         </div>
 
+                        <div style={{ marginBottom: '1rem', position: 'relative' }}>
+                            <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
+                            <input
+                                type="text"
+                                placeholder="搜尋客戶名稱或 LINE ID..."
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
+                                style={{
+                                    width: '100%',
+                                    padding: '10px 10px 10px 36px',
+                                    borderRadius: '6px',
+                                    border: '1px solid var(--border-color)',
+                                    backgroundColor: 'var(--bg-secondary)',
+                                    color: 'var(--text-primary)',
+                                    outline: 'none'
+                                }}
+                            />
+                        </div>
+
                         {importData && (
                             <div style={{
                                 marginBottom: '1.5rem',
@@ -535,7 +558,12 @@ const SendNotification = () => {
                         )}
 
                         <div style={{ maxHeight: '350px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
-                            {customers.map(c => (
+                            {customers.filter(c => {
+                                const term = searchTerm.toLowerCase();
+                                return (c.name && c.name.toLowerCase().includes(term)) ||
+                                    (c.custom_name && c.custom_name.toLowerCase().includes(term)) ||
+                                    (c.line_uid && c.line_uid.toLowerCase().includes(term));
+                            }).map(c => (
                                 <div
                                     key={c.id}
                                     onClick={() => toggleCustomer(c.id)}
