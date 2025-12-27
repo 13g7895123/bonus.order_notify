@@ -19,13 +19,14 @@ class Templates extends ResourceController
     {
         $json = $this->request->getJSON();
         if (!$json || !isset($json->name)) {
-            return $this->failValidationError('Name is required');
+            return $this->failValidationErrors('Name is required');
         }
 
         $db = \Config\Database::connect();
         $data = [
             'name' => $json->name,
             'content' => $json->content ?? '',
+            'variables' => isset($json->variables) ? json_encode($json->variables) : null,
             'created_at' => date('Y-m-d H:i:s')
         ];
         $db->table('templates')->insert($data);
@@ -46,6 +47,7 @@ class Templates extends ResourceController
         ];
         if (isset($json->name)) $data['name'] = $json->name;
         if (isset($json->content)) $data['content'] = $json->content;
+        if (isset($json->variables)) $data['variables'] = json_encode($json->variables);
 
         $db->table('templates')->where('id', $id)->update($data);
 

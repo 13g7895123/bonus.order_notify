@@ -43,14 +43,17 @@ const SendNotification = () => {
             return;
         }
 
-        const tmpl = templates.find(t => t.id === parseInt(selectedTemplate));
+        // Ensure we match by ID (both as numbers or strings)
+        const tmpl = templates.find(t => String(t.id) === String(selectedTemplate));
         if (!tmpl) return;
 
         // Regex to find {{variable}}
         const regex = /\{\{(.*?)\}\}/g;
         const found = [];
         let match;
-        while ((match = regex.exec(tmpl.content)) !== null) {
+        const tmplContent = tmpl.content || ''; // Safety check
+
+        while ((match = regex.exec(tmplContent)) !== null) {
             const varName = match[1].trim();
             // 'name' is a system reserved variable (customer name)
             if (varName !== 'name' && !found.includes(varName)) {
@@ -68,11 +71,23 @@ const SendNotification = () => {
             return next;
         });
 
-        // Initialize mapping to empty string (Manual Input) for found variables
+        // Initialize mapping
         setVariableMapping(prev => {
             const next = {};
+            // Parse template variables JSON settings if available
+            let defaultStats = {};
+            try {
+                defaultStats = typeof tmpl.variables === 'string'
+                    ? JSON.parse(tmpl.variables)
+                    : (tmpl.variables || {});
+            } catch (e) { console.error('Error parsing template variables', e); }
+
             found.forEach(v => {
-                next[v] = prev[v] || '';
+                // Priority: Previous state -> Template Default -> Empty (Manual)
+                // Actually, if a template changes, we probably want to load its defaults.
+                // But if we toggle back and forth, maybe keep user selection? 
+                // Let's prioritize Template Default for better UX on fresh select.
+                next[v] = defaultStats[v] || '';
             });
             return next;
         });
@@ -199,10 +214,10 @@ const SendNotification = () => {
         // previewLocal = false: logic for Modal (showing specific user example)
 
         if (!selectedTemplate) return null;
-        const tmpl = templates.find(t => t.id === parseInt(selectedTemplate));
+        const tmpl = templates.find(t => String(t.id) === String(selectedTemplate));
         if (!tmpl) return null;
 
-        let content = tmpl.content;
+        let content = tmpl.content || '';
 
         // 1. Highlight system variable
         content = content.replace(/\{\{name\}\}/g, '<span class="var-system">王小明</span>');
