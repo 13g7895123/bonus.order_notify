@@ -17,22 +17,24 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
 
-# Copy composer files first for better caching
-COPY composer.json composer.lock* ./
+# Create entrypoint script
+RUN echo '#!/bin/bash\n\
+    set -e\n\
+    cd /var/www/html\n\
+    \n\
+    # Install composer dependencies if vendor does not exist\n\
+    if [ ! -d "vendor" ] || [ ! -f "vendor/autoload.php" ]; then\n\
+    echo "Installing composer dependencies..."\n\
+    composer install --no-dev --optimize-autoloader --no-interaction\n\
+    fi\n\
+    \n\
+    # Set permissions\n\
+    chmod -R 777 /var/www/html/writable 2>/dev/null || true\n\
+    \n\
+    # Start PHP-FPM\n\
+    exec php-fpm\n\
+    ' > /usr/local/bin/docker-entrypoint.sh && chmod +x /usr/local/bin/docker-entrypoint.sh
 
-# Install dependencies
-RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts || true
-
-# Copy the rest of the application
-COPY . .
-
-# Run composer scripts after copying all files
-RUN composer dump-autoload --optimize --no-dev || true
-
-# Set permissions
-RUN chmod -R 777 /var/www/html/writable 2>/dev/null || true
-
-# Expose port
 EXPOSE 9000
 
-CMD ["php-fpm"]
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
