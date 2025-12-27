@@ -20,11 +20,11 @@ class AddLineUsersTable extends Migration
             'updated_at' => ['type' => 'DATETIME', 'null' => true],
         ]);
         $this->forge->addKey('id', true);
-        $this->forge->createTable('line_users');
+        $this->forge->createTable('line_users', true);
     }
 
     public function down()
     {
-        $this->forge->dropTable('line_users');
+        $this->forge->dropTable('line_users', true);
     }
 }

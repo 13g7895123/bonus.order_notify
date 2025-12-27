@@ -18,7 +18,7 @@ class InitialSchema extends Migration
             'updated_at' => ['type' => 'DATETIME', 'null' => true],
         ]);
         $this->forge->addKey('id', true);
-        $this->forge->createTable('users');
+        $this->forge->createTable('users', true);
 
         // Tokens Table (Simple Auth)
         $this->forge->addField([
@@ -28,7 +28,7 @@ class InitialSchema extends Migration
             'created_at' => ['type' => 'DATETIME', 'null' => true],
         ]);
         $this->forge->addKey('id', true);
-        $this->forge->createTable('user_tokens');
+        $this->forge->createTable('user_tokens', true);
 
         // Templates Table
         $this->forge->addField([
@@ -39,7 +39,7 @@ class InitialSchema extends Migration
             'updated_at' => ['type' => 'DATETIME', 'null' => true],
         ]);
         $this->forge->addKey('id', true);
-        $this->forge->createTable('templates');
+        $this->forge->createTable('templates', true);
 
         // Customers Table
         $this->forge->addField([
@@ -50,7 +50,7 @@ class InitialSchema extends Migration
             'updated_at' => ['type' => 'DATETIME', 'null' => true],
         ]);
         $this->forge->addKey('id', true);
-        $this->forge->createTable('customers');
+        $this->forge->createTable('customers', true);
 
         // Settings Table
         $this->forge->addField([
@@ -61,7 +61,7 @@ class InitialSchema extends Migration
             'updated_at' => ['type' => 'DATETIME', 'null' => true],
         ]);
         $this->forge->addKey('id', true);
-        $this->forge->createTable('settings');
+        $this->forge->createTable('settings', true);
 
         // Messages Table
         $this->forge->addField([
@@ -72,16 +72,16 @@ class InitialSchema extends Migration
             'created_at' => ['type' => 'DATETIME', 'null' => true],
         ]);
         $this->forge->addKey('id', true);
-        $this->forge->createTable('messages');
+        $this->forge->createTable('messages', true);
     }
 
     public function down()
     {
-        $this->forge->dropTable('messages');
-        $this->forge->dropTable('settings');
-        $this->forge->dropTable('customers');
-        $this->forge->dropTable('templates');
-        $this->forge->dropTable('user_tokens');
-        $this->forge->dropTable('users');
+        $this->forge->dropTable('messages', true);
+        $this->forge->dropTable('settings', true);
+        $this->forge->dropTable('customers', true);
+        $this->forge->dropTable('templates', true);
+        $this->forge->dropTable('user_tokens', true);
+        $this->forge->dropTable('users', true);
     }
 }
