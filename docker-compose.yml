@@ -16,6 +16,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8081/api}
     expose:
       - "80"
     restart: unless-stopped
@@ -25,6 +27,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8081/api}
     expose:
       - "80"
     restart: unless-stopped
