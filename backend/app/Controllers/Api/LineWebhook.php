@@ -46,24 +46,35 @@ class LineWebhook extends ResourceController
                 // Check if user already exists in line_users table
                 $existing = $db->table('line_users')->where('line_uid', $userId)->get()->getRowArray();
 
-                if (!$existing) {
-                    // Get user profile from LINE
-                    $profile = $this->getLineUserProfile($userId);
+                // Get user profile from LINE
+                $profile = $this->getLineUserProfile($userId);
 
+                if (!$existing) {
+                    // Insert new user
                     $db->table('line_users')->insert([
                         'line_uid' => $userId,
                         'display_name' => $profile['displayName'] ?? '',
                         'picture_url' => $profile['pictureUrl'] ?? '',
                         'status_message' => $profile['statusMessage'] ?? '',
+                        'email' => $profile['email'] ?? null,
                         'event_type' => $eventType,
                         'created_at' => date('Y-m-d H:i:s')
+                    ]);
+                } else {
+                    // Update existing user info (profile may have changed)
+                    $db->table('line_users')->where('line_uid', $userId)->update([
+                        'display_name' => $profile['displayName'] ?? $existing['display_name'],
+                        'picture_url' => $profile['pictureUrl'] ?? $existing['picture_url'],
+                        'status_message' => $profile['statusMessage'] ?? $existing['status_message'],
+                        'email' => $profile['email'] ?? $existing['email'],
+                        'updated_at' => date('Y-m-d H:i:s')
                     ]);
                 }
 
                 // If it's a message event, log the message
                 if ($eventType === 'message' && isset($event['message']['text'])) {
                     // Find linked customer
-                    $customer = $db->table('customers')->where('line_id', $userId)->get()->getRowArray();
+                    $customer = $db->table('customers')->where('line_uid', $userId)->get()->getRowArray();
 
                     $db->table('messages')->insert([
                         'customer_id' => $customer['id'] ?? null,
@@ -85,16 +96,16 @@ class LineWebhook extends ResourceController
     {
         $db = \Config\Database::connect();
         $users = $db->table('line_users')
-            ->select('line_users.*, customers.name as linked_customer_name')
-            ->join('customers', 'customers.line_id = line_users.line_uid', 'left')
-            ->orderBy('created_at', 'DESC')
+            ->select('line_users.*, customers.custom_name as linked_customer_name')
+            ->join('customers', 'customers.line_uid = line_users.line_uid', 'left')
+            ->orderBy('line_users.created_at', 'DESC')
             ->get()->getResultArray();
 
         return $this->respond($users);
     }
 
     /**
-     * Get LINE user profile
+     * Get LINE user profile from LINE API
      */
     private function getLineUserProfile(string $userId): array
     {
@@ -115,7 +126,12 @@ class LineWebhook extends ResourceController
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 
         $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
+
+        if ($httpCode !== 200) {
+            return [];
+        }
 
         return json_decode($response, true) ?? [];
     }
