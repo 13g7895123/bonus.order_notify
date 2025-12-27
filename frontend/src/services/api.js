@@ -77,5 +77,13 @@ export const api = {
         update: async (id, data) => fetch(`${API_URL}/users/${id}`, { method: 'PUT', headers: getHeaders(), body: JSON.stringify(data) }),
         delete: async (id) => fetch(`${API_URL}/users/${id}`, { method: 'DELETE', headers: getHeaders() }),
         regenerateWebhook: async (id) => (await fetch(`${API_URL}/users/${id}/regenerate-webhook`, { method: 'POST', headers: getHeaders() })).json()
+    },
+    activityLogs: {
+        list: async (params = {}) => {
+            const query = new URLSearchParams(params).toString();
+            return (await fetch(`${API_URL}/activity-logs${query ? '?' + query : ''}`, { headers: getHeaders() })).json();
+        },
+        stats: async () => (await fetch(`${API_URL}/activity-logs/stats`, { headers: getHeaders() })).json(),
+        clear: async (days = 30) => fetch(`${API_URL}/activity-logs?days=${days}`, { method: 'DELETE', headers: getHeaders() })
     }
 };

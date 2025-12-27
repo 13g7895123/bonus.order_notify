@@ -53,4 +53,9 @@ $routes->group('api', ['namespace' => 'App\Controllers\Api'], function ($routes)
     $routes->put('users/(:num)', 'Users::update/$1');
     $routes->delete('users/(:num)', 'Users::delete/$1');
     $routes->post('users/(:num)/regenerate-webhook', 'Users::regenerateWebhook/$1');
+
+    // Activity Logs (Admin)
+    $routes->get('activity-logs', 'ActivityLogs::index');
+    $routes->get('activity-logs/stats', 'ActivityLogs::stats');
+    $routes->delete('activity-logs', 'ActivityLogs::clear');
 });
