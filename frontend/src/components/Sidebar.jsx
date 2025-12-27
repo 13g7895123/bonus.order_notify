@@ -1,8 +1,10 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, FileText, Users, Send, Settings } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, Send, Settings, LogOut } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const Sidebar = () => {
+    const { logout } = useAuth();
     const navItems = [
         { path: '/', icon: <LayoutDashboard size={20} />, label: '儀表板' },
         { path: '/templates', icon: <FileText size={20} />, label: '通知範本' },
@@ -48,6 +50,30 @@ const Sidebar = () => {
                     </NavLink>
                 ))}
             </nav>
+            <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+                <button
+                    onClick={logout}
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '12px',
+                        width: '100%',
+                        borderRadius: '8px',
+                        color: 'var(--danger)',
+                        transition: 'all 0.2s',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        backgroundColor: 'transparent', // Ensure default background is transparent
+                        border: 'none' // Remove default button border
+                    }}
+                    onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)'}
+                    onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                >
+                    <LogOut size={20} />
+                    <span>登出</span>
+                </button>
+            </div>
         </div>
     );
 };
