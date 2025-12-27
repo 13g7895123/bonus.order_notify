@@ -15,35 +15,35 @@ class Customers extends ResourceController
 
         $search = $this->request->getGet('search');
         if ($search) {
-            $builder->like('name', $search)->orLike('line_id', $search);
+            $builder->like('custom_name', $search)->orLike('line_uid', $search);
         }
 
-        $customers = $builder->get()->getResultArray();
+        $customers = $builder->orderBy('created_at', 'DESC')->get()->getResultArray();
         return $this->respond($customers);
     }
 
     public function create()
     {
         $json = $this->request->getJSON();
-        if (!$json || !isset($json->name)) {
-            return $this->failValidationError('Name is required');
+        if (!$json || !isset($json->line_uid)) {
+            return $this->failValidationErrors('line_uid is required');
         }
 
         $db = \Config\Database::connect();
 
         // Check if update or create
-        if (isset($json->id)) {
+        if (isset($json->id) && $json->id) {
             $data = [
-                'name' => $json->name,
-                'line_id' => $json->line_id ?? '',
+                'line_uid' => $json->line_uid,
+                'custom_name' => $json->custom_name ?? null,
                 'updated_at' => date('Y-m-d H:i:s')
             ];
             $db->table('customers')->where('id', $json->id)->update($data);
             return $this->respond(['id' => $json->id, ...$data]);
         } else {
             $data = [
-                'name' => $json->name,
-                'line_id' => $json->line_id ?? '',
+                'line_uid' => $json->line_uid,
+                'custom_name' => $json->custom_name ?? null,
                 'created_at' => date('Y-m-d H:i:s')
             ];
             $db->table('customers')->insert($data);

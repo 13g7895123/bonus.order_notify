@@ -33,13 +33,13 @@ class InitialSeeder extends Seeder
         // Sample Customers
         $this->db->table('customers')->insertBatch([
             [
-                'name' => '王小明',
-                'line_id' => 'U1234567890abcdef',
+                'line_uid' => 'U1234567890abcdef',
+                'custom_name' => '王小明',
                 'created_at' => date('Y-m-d H:i:s'),
             ],
             [
-                'name' => '陳大文',
-                'line_id' => 'U0987654321fedcba',
+                'line_uid' => 'U0987654321fedcba',
+                'custom_name' => '陳大文',
                 'created_at' => date('Y-m-d H:i:s'),
             ]
         ]);

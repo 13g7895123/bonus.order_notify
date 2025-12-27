@@ -36,13 +36,16 @@ class Notifications extends ResourceController
         foreach ($customerIds as $cid) {
             $customer = $db->table('customers')->where('id', $cid)->get()->getRowArray();
             if ($customer) {
-                // Replace variables
+                // Replace variables - use custom_name or get display_name from line_users
+                $lineUser = $db->table('line_users')->where('line_uid', $customer['line_uid'])->get()->getRowArray();
+                $displayName = $customer['custom_name'] ?: ($lineUser['display_name'] ?? 'Customer');
+
                 $content = $template['content'];
-                $content = str_replace('{{name}}', $customer['name'], $content);
+                $content = str_replace('{{name}}', $displayName, $content);
                 // ... more variable replacements can be added
 
                 // Call LINE Message API
-                $lineResult = $this->sendLineMessage($channelAccessToken['value'], $customer['line_id'], $content);
+                $lineResult = $this->sendLineMessage($channelAccessToken['value'], $customer['line_uid'], $content);
 
                 // Log Message
                 $db->table('messages')->insert([

@@ -1,6 +1,6 @@
 # Backend API Documentation
 
-Base URL: `http://localhost:8081/api`
+Base URL: `/api`
 
 ## Authentication
 
@@ -9,7 +9,7 @@ Base URL: `http://localhost:8081/api`
 - **Body**:
   ```json
   {
-    "email": "user@example.com",
+    "username": "admin",
     "password": "password"
   }
   ```
@@ -17,7 +17,11 @@ Base URL: `http://localhost:8081/api`
   ```json
   {
     "token": "...",
-    "user": { ... }
+    "user": {
+      "id": 1,
+      "username": "admin",
+      "name": "Admin User"
+    }
   }
   ```
 
@@ -45,13 +49,57 @@ Base URL: `http://localhost:8081/api`
 
 ### List Customers
 - **Endpoint**: `GET /customers?search={keyword}`
+- **Response**:
+  ```json
+  [
+    {
+      "id": 1,
+      "line_uid": "U1234567890abcdef",
+      "custom_name": "王小明（VIP）",
+      "created_at": "2024-01-01 10:00:00"
+    }
+  ]
+  ```
 
 ### Create/Update Customer
 - **Endpoint**: `POST /customers`
-- **Body**: `{ "id": 1, "name": "...", "line_id": "..." }` (ID optional for create)
+- **Body**:
+  ```json
+  {
+    "id": null,
+    "line_uid": "U1234567890abcdef",
+    "custom_name": "王小明（VIP）"
+  }
+  ```
+- **說明**:
+  - `id`: null 為新增，有值為更新
+  - `line_uid`: LINE User ID（必填）
+  - `custom_name`: 自定義名稱（選填）
 
 ### Delete Customer
 - **Endpoint**: `DELETE /customers/{id}`
+
+## LINE Webhook & Users
+
+### Webhook Endpoint (for LINE Developers Console)
+- **Endpoint**: `POST /line/webhook`
+- **Description**: LINE 平台呼叫此端點，自動記錄使用者 UID。
+
+### List LINE Users
+- **Endpoint**: `GET /line/users`
+- **Response**:
+  ```json
+  [
+    {
+      "id": 1,
+      "line_uid": "U1234...",
+      "display_name": "使用者名稱",
+      "picture_url": "https://...",
+      "linked_customer_name": null,
+      "created_at": "2024-01-01 10:00:00"
+    }
+  ]
+  ```
 
 ## Notifications
 
@@ -62,6 +110,15 @@ Base URL: `http://localhost:8081/api`
   {
     "template_id": 1,
     "customer_ids": [1, 2]
+  }
+  ```
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "sent_count": 2,
+    "message": "成功發送給 2 位客戶",
+    "errors": []
   }
   ```
 
@@ -94,26 +151,3 @@ Base URL: `http://localhost:8081/api`
     "line_channel_access_token": "your_channel_access_token"
   }
   ```
-
-## LINE Webhook & Users
-
-### Webhook Endpoint (for LINE Developers Console)
-- **Endpoint**: `POST /line/webhook`
-- **Description**: LINE 平台會呼叫此端點，當使用者加入 Bot 或傳送訊息時自動記錄 UID。
-
-### List LINE Users
-- **Endpoint**: `GET /line/users`
-- **Response**:
-  ```json
-  [
-    {
-      "id": 1,
-      "line_uid": "U1234...",
-      "display_name": "使用者名稱",
-      "picture_url": "https://...",
-      "linked_customer_name": null,
-      "created_at": "2024-01-01 10:00:00"
-    }
-  ]
-  ```
-

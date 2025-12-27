@@ -3,25 +3,37 @@ import { api } from '../services/api';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
-import { Plus, Trash2, Edit2, Search } from 'lucide-react';
+import { Plus, Trash2, Edit2, Search, Users, Link } from 'lucide-react';
 
 const Customers = () => {
     const [customers, setCustomers] = useState([]);
+    const [lineUsers, setLineUsers] = useState([]);
     const [isEditing, setIsEditing] = useState(false);
-    const [currentCustomer, setCurrentCustomer] = useState({ id: null, name: '', line_id: '' });
+    const [currentCustomer, setCurrentCustomer] = useState({ id: null, custom_name: '', line_uid: '' });
     const [search, setSearch] = useState('');
+    const [showLineUserPicker, setShowLineUserPicker] = useState(false);
 
     useEffect(() => {
         loadCustomers();
+        loadLineUsers();
     }, [search]);
 
     const loadCustomers = async () => {
         const data = await api.customers.list(search);
-        setCustomers(data);
+        setCustomers(Array.isArray(data) ? data : []);
+    };
+
+    const loadLineUsers = async () => {
+        const data = await api.line.getUsers();
+        setLineUsers(Array.isArray(data) ? data : []);
     };
 
     const handleEdit = (cust) => {
-        setCurrentCustomer(cust);
+        setCurrentCustomer({
+            id: cust.id,
+            custom_name: cust.custom_name || '',
+            line_uid: cust.line_uid || ''
+        });
         setIsEditing(true);
     };
 
@@ -33,29 +45,35 @@ const Customers = () => {
     };
 
     const handleSave = async () => {
-        if (!currentCustomer.name || !currentCustomer.line_id) return;
-
-        // Create/Update uses same endpoint in my implementation plan logic or check ID?
-        // My api.js uses POST for save. Let's ensure Controller handles it.
-        // Controller logic: check if ID exists in body. 
-        // And in handleSave 'currentCustomer' has 'id' if editing.
+        if (!currentCustomer.line_uid) return;
         await api.customers.save(currentCustomer);
         loadCustomers();
         setIsEditing(false);
-        setCurrentCustomer({ id: null, name: '', line_id: '' });
+        setCurrentCustomer({ id: null, custom_name: '', line_uid: '' });
     };
 
-    const filteredCustomers = customers; // filtering handled by API now
+    const selectLineUser = (lineUser) => {
+        setCurrentCustomer({
+            ...currentCustomer,
+            line_uid: lineUser.line_uid,
+            custom_name: currentCustomer.custom_name || lineUser.display_name || ''
+        });
+        setShowLineUserPicker(false);
+    };
+
+    const getLineUserInfo = (lineUid) => {
+        return lineUsers.find(u => u.line_uid === lineUid);
+    };
 
     return (
         <div>
             <div className="flex justify-between items-center" style={{ marginBottom: '2rem' }}>
                 <div>
                     <h1 style={{ fontSize: '2rem', fontWeight: 'bold' }}>客戶名單</h1>
-                    <p style={{ color: 'var(--text-secondary)' }}>管理客戶名稱與 LINE ID 的對應關係。</p>
+                    <p style={{ color: 'var(--text-secondary)' }}>管理客戶，連結 LINE 使用者並設定自定義名稱。</p>
                 </div>
                 {!isEditing && (
-                    <Button onClick={() => { setCurrentCustomer({ id: null, name: '', line_id: '' }); setIsEditing(true); }}>
+                    <Button onClick={() => { setCurrentCustomer({ id: null, custom_name: '', line_uid: '' }); setIsEditing(true); }}>
                         <Plus size={18} /> 新增客戶
                     </Button>
                 )}
@@ -63,18 +81,77 @@ const Customers = () => {
 
             {isEditing ? (
                 <Card title={currentCustomer.id ? '編輯客戶' : '新增客戶'}>
+                    <div style={{ marginBottom: '1rem' }}>
+                        <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                            LINE 使用者
+                        </label>
+                        <div className="flex gap-2">
+                            <Input
+                                value={currentCustomer.line_uid}
+                                onChange={e => setCurrentCustomer({ ...currentCustomer, line_uid: e.target.value })}
+                                placeholder="LINE User ID"
+                                style={{ marginBottom: 0, flex: 1 }}
+                            />
+                            <Button variant="secondary" onClick={() => setShowLineUserPicker(!showLineUserPicker)}>
+                                <Users size={18} /> 選擇
+                            </Button>
+                        </div>
+
+                        {/* LINE User Picker */}
+                        {showLineUserPicker && (
+                            <div style={{
+                                marginTop: '0.5rem',
+                                backgroundColor: 'var(--bg-tertiary)',
+                                borderRadius: '8px',
+                                border: '1px solid var(--border-color)',
+                                maxHeight: '200px',
+                                overflowY: 'auto'
+                            }}>
+                                {lineUsers.length === 0 ? (
+                                    <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                                        尚無 LINE 使用者，請先設定 Webhook。
+                                    </div>
+                                ) : lineUsers.map(u => (
+                                    <div
+                                        key={u.id}
+                                        onClick={() => selectLineUser(u)}
+                                        style={{
+                                            padding: '0.75rem 1rem',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '10px',
+                                            borderBottom: '1px solid rgba(255,255,255,0.05)'
+                                        }}
+                                        onMouseOver={e => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)'}
+                                        onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                                    >
+                                        {u.picture_url ? (
+                                            <img src={u.picture_url} alt="" style={{ width: '32px', height: '32px', borderRadius: '50%' }} />
+                                        ) : (
+                                            <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                <Users size={16} />
+                                            </div>
+                                        )}
+                                        <div>
+                                            <div style={{ fontWeight: '500' }}>{u.display_name || 'Unknown'}</div>
+                                            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>{u.line_uid}</div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
                     <Input
-                        label="客戶名稱"
-                        value={currentCustomer.name}
-                        onChange={e => setCurrentCustomer({ ...currentCustomer, name: e.target.value })}
+                        label="自定義名稱"
+                        value={currentCustomer.custom_name}
+                        onChange={e => setCurrentCustomer({ ...currentCustomer, custom_name: e.target.value })}
+                        placeholder="例如：王小明（訂單客戶）"
                     />
-                    <Input
-                        label="LINE User ID"
-                        value={currentCustomer.line_id}
-                        onChange={e => setCurrentCustomer({ ...currentCustomer, line_id: e.target.value })}
-                    />
+
                     <div className="flex gap-2 justify-end">
-                        <Button variant="secondary" onClick={() => setIsEditing(false)}>取消</Button>
+                        <Button variant="secondary" onClick={() => { setIsEditing(false); setShowLineUserPicker(false); }}>取消</Button>
                         <Button onClick={handleSave}>儲存</Button>
                     </div>
                 </Card>
@@ -94,27 +171,48 @@ const Customers = () => {
                         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                             <thead style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderBottom: '1px solid var(--border-color)' }}>
                                 <tr>
-                                    <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: '600' }}>名稱</th>
-                                    <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: '600' }}>LINE ID</th>
+                                    <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: '600' }}>LINE 資訊</th>
+                                    <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: '600' }}>自定義名稱</th>
                                     <th style={{ padding: '1rem', width: '100px' }}></th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {filteredCustomers.map(c => (
-                                    <tr key={c.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                                        <td style={{ padding: '1rem' }}>{c.name}</td>
-                                        <td style={{ padding: '1rem', fontFamily: 'monospace' }}>{c.line_id}</td>
-                                        <td style={{ padding: '1rem' }}>
-                                            <div className="flex gap-2 justify-end">
-                                                <button onClick={() => handleEdit(c)} style={{ color: 'var(--accent-primary)', cursor: 'pointer' }}><Edit2 size={18} /></button>
-                                                <button onClick={() => handleDelete(c.id)} style={{ color: 'var(--danger)', cursor: 'pointer' }}><Trash2 size={18} /></button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                                {filteredCustomers.length === 0 && (
+                                {customers.map(c => {
+                                    const lineInfo = getLineUserInfo(c.line_uid);
+                                    return (
+                                        <tr key={c.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                                            <td style={{ padding: '1rem' }}>
+                                                <div className="flex items-center gap-2">
+                                                    {lineInfo?.picture_url ? (
+                                                        <img src={lineInfo.picture_url} alt="" style={{ width: '36px', height: '36px', borderRadius: '50%' }} />
+                                                    ) : (
+                                                        <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                            <Users size={18} />
+                                                        </div>
+                                                    )}
+                                                    <div>
+                                                        <div style={{ fontWeight: '500' }}>{lineInfo?.display_name || '-'}</div>
+                                                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>{c.line_uid}</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td style={{ padding: '1rem' }}>
+                                                {c.custom_name || <span style={{ color: 'var(--text-secondary)' }}>未設定</span>}
+                                            </td>
+                                            <td style={{ padding: '1rem' }}>
+                                                <div className="flex gap-2 justify-end">
+                                                    <button onClick={() => handleEdit(c)} style={{ color: 'var(--accent-primary)', cursor: 'pointer', background: 'none', border: 'none' }}><Edit2 size={18} /></button>
+                                                    <button onClick={() => handleDelete(c.id)} style={{ color: 'var(--danger)', cursor: 'pointer', background: 'none', border: 'none' }}><Trash2 size={18} /></button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                                {customers.length === 0 && (
                                     <tr>
-                                        <td colSpan="3" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>找不到相符的客戶。</td>
+                                        <td colSpan="3" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                                            尚無客戶資料。請先從 LINE 使用者頁面確認有收到使用者，再新增客戶。
+                                        </td>
                                     </tr>
                                 )}
                             </tbody>

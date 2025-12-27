@@ -44,8 +44,8 @@ class InitialSchema extends Migration
         // Customers Table
         $this->forge->addField([
             'id' => ['type' => 'INT', 'constraint' => 11, 'unsigned' => true, 'auto_increment' => true],
-            'name' => ['type' => 'VARCHAR', 'constraint' => 100],
-            'line_id' => ['type' => 'VARCHAR', 'constraint' => 100],
+            'line_uid' => ['type' => 'VARCHAR', 'constraint' => 100],
+            'custom_name' => ['type' => 'VARCHAR', 'constraint' => 200, 'null' => true],
             'created_at' => ['type' => 'DATETIME', 'null' => true],
             'updated_at' => ['type' => 'DATETIME', 'null' => true],
         ]);
