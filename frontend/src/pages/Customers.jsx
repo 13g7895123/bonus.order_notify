@@ -178,20 +178,19 @@ const Customers = () => {
                             </thead>
                             <tbody>
                                 {customers.map(c => {
-                                    const lineInfo = getLineUserInfo(c.line_uid);
                                     return (
                                         <tr key={c.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
                                             <td style={{ padding: '1rem' }}>
                                                 <div className="flex items-center gap-2">
-                                                    {lineInfo?.picture_url ? (
-                                                        <img src={lineInfo.picture_url} alt="" style={{ width: '36px', height: '36px', borderRadius: '50%' }} />
+                                                    {c.picture_url ? (
+                                                        <img src={c.picture_url} alt="" style={{ width: '36px', height: '36px', borderRadius: '50%' }} />
                                                     ) : (
                                                         <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                                             <Users size={18} />
                                                         </div>
                                                     )}
                                                     <div>
-                                                        <div style={{ fontWeight: '500' }}>{lineInfo?.display_name || '-'}</div>
+                                                        <div style={{ fontWeight: '500' }}>{c.line_display_name || '-'}</div>
                                                         <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>{c.line_uid}</div>
                                                     </div>
                                                 </div>

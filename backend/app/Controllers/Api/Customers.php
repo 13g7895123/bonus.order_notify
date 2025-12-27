@@ -13,12 +13,20 @@ class Customers extends ResourceController
         $db = \Config\Database::connect();
         $builder = $db->table('customers');
 
+        // Join with line_users to get LINE profile data
+        $builder->select('customers.*, line_users.display_name as line_display_name, line_users.picture_url, line_users.status_message');
+        $builder->join('line_users', 'line_users.line_uid = customers.line_uid', 'left');
+
         $search = $this->request->getGet('search');
         if ($search) {
-            $builder->like('custom_name', $search)->orLike('line_uid', $search);
+            $builder->groupStart()
+                ->like('customers.custom_name', $search)
+                ->orLike('customers.line_uid', $search)
+                ->orLike('line_users.display_name', $search)
+                ->groupEnd();
         }
 
-        $customers = $builder->orderBy('created_at', 'DESC')->get()->getResultArray();
+        $customers = $builder->orderBy('customers.created_at', 'DESC')->get()->getResultArray();
         return $this->respond($customers);
     }
 

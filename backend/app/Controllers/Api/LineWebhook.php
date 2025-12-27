@@ -88,6 +88,18 @@ class LineWebhook extends ResourceController
                     ]);
                 }
 
+                // Auto-create customer if not exists
+                $existingCustomer = $db->table('customers')->where('line_uid', $userId)->get()->getRowArray();
+                if (!$existingCustomer) {
+                    $displayName = $profile['displayName'] ?? '';
+                    log_message('info', "[LINE Webhook] Auto-creating customer for: " . $userId . " with name: " . $displayName);
+                    $db->table('customers')->insert([
+                        'line_uid' => $userId,
+                        'custom_name' => $displayName, // Use LINE display_name as initial custom_name
+                        'created_at' => date('Y-m-d H:i:s')
+                    ]);
+                }
+
                 // Log text messages
                 if ($eventType === 'message' && isset($event['message']['text'])) {
                     $customer = $db->table('customers')->where('line_uid', $userId)->get()->getRowArray();
