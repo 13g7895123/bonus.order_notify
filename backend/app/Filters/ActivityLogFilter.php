@@ -42,9 +42,11 @@ class ActivityLogFilter implements FilterInterface
             }
         }
 
-        // Get user from token
+        // Get user from token or webhook key
         $userId = null;
         $username = null;
+
+        // First try: check for Bearer token (regular API calls)
         $authHeader = $request->getHeaderLine('Authorization');
         if (preg_match('/Bearer\s+(.*)$/i', $authHeader, $matches)) {
             $token = $matches[1];
@@ -55,6 +57,20 @@ class ActivityLogFilter implements FilterInterface
                 if ($user) {
                     $userId = $user['id'];
                     $username = $user['username'];
+                }
+            }
+        }
+
+        // Second try: check for webhook key (LINE webhook calls)
+        if (!$userId && strpos($endpoint, '/api/line/webhook') !== false) {
+            // Get key from query string
+            $webhookKey = $_GET['key'] ?? null;
+            if ($webhookKey) {
+                $db = \Config\Database::connect();
+                $user = $db->table('users')->where('webhook_key', $webhookKey)->get()->getRowArray();
+                if ($user) {
+                    $userId = $user['id'];
+                    $username = $user['username'] . ' (webhook)';
                 }
             }
         }
