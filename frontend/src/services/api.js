@@ -41,7 +41,20 @@ export const api = {
         delete: async (id) => fetch(`${API_URL}/customers/${id}`, { method: 'DELETE', headers: getHeaders() })
     },
     notifications: {
-        send: async (data) => (await fetch(`${API_URL}/notifications/send`, { method: 'POST', headers: getHeaders(), body: JSON.stringify(data) })).json()
+        send: async (data) => (await fetch(`${API_URL}/notifications/send`, { method: 'POST', headers: getHeaders(), body: JSON.stringify(data) })).json(),
+        importPreview: async (file) => {
+            const formData = new FormData();
+            formData.append('file', file);
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            const res = await fetch(`${API_URL}/notifications/import-preview`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': user.token ? `Bearer ${user.token}` : ''
+                },
+                body: formData
+            });
+            return res.json();
+        }
     },
     settings: {
         get: async () => (await fetch(`${API_URL}/settings`, { headers: getHeaders() })).json(),

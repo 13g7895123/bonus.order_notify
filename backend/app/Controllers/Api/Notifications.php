@@ -71,6 +71,60 @@ class Notifications extends ResourceController
         ]);
     }
 
+
+    public function importPreview()
+    {
+        $file = $this->request->getFile('file');
+        if (!$file || !$file->isValid()) {
+            return $this->failValidationErrors('請上傳有效的檔案');
+        }
+
+        try {
+            $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($file->getTempName());
+            $worksheet = $spreadsheet->getActiveSheet();
+            $rows = $worksheet->toArray();
+
+            // A2 is (1, 0) index. Member Name is column A.
+            $names = [];
+            for ($i = 1; $i < count($rows); $i++) {
+                if (!empty($rows[$i][0])) {
+                    $names[] = trim($rows[$i][0]);
+                }
+            }
+
+            if (empty($names)) {
+                return $this->failValidationErrors('檔案中沒有可讀取的會員姓名（從 A2 開始）');
+            }
+
+            $db = \Config\Database::connect();
+            $matched = [];
+            $notFound = [];
+
+            foreach ($names as $name) {
+                $customer = $db->table('customers')
+                    ->where('custom_name', $name)
+                    ->get()->getRowArray();
+
+                if ($customer) {
+                    $matched[] = [
+                        'id' => $customer['id'],
+                        'custom_name' => $customer['custom_name'],
+                        'line_uid' => $customer['line_uid']
+                    ];
+                } else {
+                    $notFound[] = $name;
+                }
+            }
+
+            return $this->respond([
+                'matched' => $matched,
+                'not_found' => array_values(array_unique($notFound))
+            ]);
+        } catch (\Exception $e) {
+            return $this->fail('讀取檔案出錯：' . $e->getMessage());
+        }
+    }
+
     /**
      * Send message via LINE Messaging API
      */

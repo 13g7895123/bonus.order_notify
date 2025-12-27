@@ -122,6 +122,20 @@ Base URL: `/api`
   }
   ```
 
+### Import Notification List from XLS
+- **Endpoint**: `POST /notifications/import-preview`
+- **Body**: `multipart/form-data` (file: .xls/.xlsx)
+- **Response**:
+  ```json
+  {
+    "matched": [
+      { "id": 1, "custom_name": "王小明", "line_uid": "U..." }
+    ],
+    "not_found": ["陳大文"]
+  }
+  ```
+- **說明**: 讀取 XLS 檔案 A 欄（從 A2 開始），比對 `customers.custom_name`。
+
 ## Messages (History)
 
 ### Recent Messages
