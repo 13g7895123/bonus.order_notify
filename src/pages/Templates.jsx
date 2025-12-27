@@ -16,8 +16,8 @@ const Templates = () => {
         } else {
             // Mock data
             const mock = [
-                { id: 1, name: 'Order Confirmation', content: 'Hi {{name}}, your order {{order_id}} has been confirmed.' },
-                { id: 2, name: 'Shipping Update', content: 'Hello {{name}}, your order {{order_id}} has shipped. Tracking: {{tracking_number}}' }
+                { id: 1, name: '訂單確認', content: '嗨 {{name}}，您的訂單 {{order_id}} 已確認。' },
+                { id: 2, name: '出貨通知', content: '哈囉 {{name}}，您的訂單 {{order_id}} 已出貨。追蹤號碼：{{tracking_number}}' }
             ];
             setTemplates(mock);
             localStorage.setItem('templates', JSON.stringify(mock));
@@ -35,7 +35,7 @@ const Templates = () => {
     };
 
     const handleDelete = (id) => {
-        if (confirm('Are you sure you want to delete this template?')) {
+        if (confirm('確定要刪除此範本嗎？')) {
             saveTemplates(templates.filter(t => t.id !== id));
         }
     };
@@ -59,34 +59,34 @@ const Templates = () => {
         <div>
             <div className="flex justify-between items-center" style={{ marginBottom: '2rem' }}>
                 <div>
-                    <h1 style={{ fontSize: '2rem', fontWeight: 'bold' }}>Templates</h1>
-                    <p style={{ color: 'var(--text-secondary)' }}>Design your notification messages.</p>
+                    <h1 style={{ fontSize: '2rem', fontWeight: 'bold' }}>通知範本</h1>
+                    <p style={{ color: 'var(--text-secondary)' }}>設計您的通知訊息內容。</p>
                 </div>
                 {!isEditing && (
                     <Button onClick={() => { setCurrentTemplate({ id: null, name: '', content: '' }); setIsEditing(true); }}>
-                        <Plus size={18} /> New Template
+                        <Plus size={18} /> 新增範本
                     </Button>
                 )}
             </div>
 
             {isEditing ? (
-                <Card title={currentTemplate.id ? 'Edit Template' : 'New Template'}>
+                <Card title={currentTemplate.id ? '編輯範本' : '新增範本'}>
                     <Input
-                        label="Template Name"
+                        label="範本名稱"
                         value={currentTemplate.name}
                         onChange={e => setCurrentTemplate({ ...currentTemplate, name: e.target.value })}
-                        placeholder="e.g., Order Shipped"
+                        placeholder="例如: 訂單出貨通知"
                     />
                     <Input
-                        label="Content (Use {{variable}} for dynamic data)"
+                        label="內容 (使用 {{variable}} 作為動態變數)"
                         multiline
                         value={currentTemplate.content}
                         onChange={e => setCurrentTemplate({ ...currentTemplate, content: e.target.value })}
-                        placeholder="Hello {{name}}, ..."
+                        placeholder="哈囉 {{name}}, ..."
                     />
                     <div className="flex gap-2 justify-end">
-                        <Button variant="secondary" onClick={() => setIsEditing(false)}>Cancel</Button>
-                        <Button onClick={handleSave}>Save Template</Button>
+                        <Button variant="secondary" onClick={() => setIsEditing(false)}>取消</Button>
+                        <Button onClick={handleSave}>儲存範本</Button>
                     </div>
                 </Card>
             ) : (

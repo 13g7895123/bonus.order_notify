@@ -4,11 +4,11 @@ import { LayoutDashboard, FileText, Users, Send, Settings } from 'lucide-react';
 
 const Sidebar = () => {
     const navItems = [
-        { path: '/', icon: <LayoutDashboard size={20} />, label: 'Dashboard' },
-        { path: '/templates', icon: <FileText size={20} />, label: 'Templates' },
-        { path: '/customers', icon: <Users size={20} />, label: 'Customers' },
-        { path: '/send', icon: <Send size={20} />, label: 'Send Notify' },
-        { path: '/settings', icon: <Settings size={20} />, label: 'Settings' },
+        { path: '/', icon: <LayoutDashboard size={20} />, label: '儀表板' },
+        { path: '/templates', icon: <FileText size={20} />, label: '通知範本' },
+        { path: '/customers', icon: <Users size={20} />, label: '客戶名單' },
+        { path: '/send', icon: <Send size={20} />, label: '發送通知' },
+        { path: '/settings', icon: <Settings size={20} />, label: '系統設定' },
     ];
 
     return (

@@ -14,8 +14,8 @@ const Dashboard = () => {
 
     return (
         <div>
-            <h1 style={{ fontSize: '2rem', marginBottom: '1rem', fontWeight: 'bold' }}>Dashboard</h1>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem' }}>Welcome to NotifyHub.</p>
+            <h1 style={{ fontSize: '2rem', marginBottom: '1rem', fontWeight: 'bold' }}>儀表板</h1>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem' }}>歡迎來到 NotifyHub 訂單通知系統</p>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem' }}>
                 <Card style={{ padding: '2rem', display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
@@ -24,7 +24,7 @@ const Dashboard = () => {
                     </div>
                     <div>
                         <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>{stats.templates}</div>
-                        <div style={{ color: 'var(--text-secondary)' }}>Templates</div>
+                        <div style={{ color: 'var(--text-secondary)' }}>通知範本</div>
                     </div>
                 </Card>
 
@@ -34,7 +34,7 @@ const Dashboard = () => {
                     </div>
                     <div>
                         <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>{stats.customers}</div>
-                        <div style={{ color: 'var(--text-secondary)' }}>Customers</div>
+                        <div style={{ color: 'var(--text-secondary)' }}>客戶名單</div>
                     </div>
                 </Card>
 
@@ -43,23 +43,23 @@ const Dashboard = () => {
                         <Send size={32} />
                     </div>
                     <div>
-                        <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>Ready</div>
-                        <div style={{ color: 'var(--text-secondary)' }}>System Status</div>
+                        <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>正常</div>
+                        <div style={{ color: 'var(--text-secondary)' }}>系統狀態</div>
                     </div>
                 </Card>
             </div>
 
             <div style={{ marginTop: '2rem' }}>
-                <Card title="Quick Actions">
+                <Card title="快速操作">
                     <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
                         <Link to="/send" style={{ textDecoration: 'none' }}>
                             <button style={{ padding: '10px 20px', backgroundColor: 'var(--accent-primary)', color: 'white', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: '600' }}>
-                                New Notification
+                                建立新通知
                             </button>
                         </Link>
                         <Link to="/templates" style={{ textDecoration: 'none' }}>
                             <button style={{ padding: '10px 20px', backgroundColor: 'var(--bg-tertiary)', color: 'white', borderRadius: '8px', border: '1px solid var(--border-color)', cursor: 'pointer', fontWeight: '600' }}>
-                                Manage Templates
+                                管理範本
                             </button>
                         </Link>
                     </div>

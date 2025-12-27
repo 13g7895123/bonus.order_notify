@@ -27,7 +27,7 @@ const SendNotification = () => {
 
         // Mock Result
         const successCount = selectedCustomers.length;
-        setResult({ success: true, message: `Successfully sent to ${successCount} customers.` });
+        setResult({ success: true, message: `成功發送給 ${successCount} 位客戶。` });
         setSending(false);
         setSelectedCustomers([]);
     };
@@ -50,14 +50,14 @@ const SendNotification = () => {
         <div>
             <div className="flex justify-between items-center" style={{ marginBottom: '2rem' }}>
                 <div>
-                    <h1 style={{ fontSize: '2rem', fontWeight: 'bold' }}>Send Notification</h1>
-                    <p style={{ color: 'var(--text-secondary)' }}>Dispatch messages to your customers.</p>
+                    <h1 style={{ fontSize: '2rem', fontWeight: 'bold' }}>發送通知</h1>
+                    <p style={{ color: 'var(--text-secondary)' }}>將訊息發送給已選定的客戶。</p>
                 </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '2rem' }}>
                 <div>
-                    <Card title="1. Select Template">
+                    <Card title="1. 選擇範本">
                         <select
                             value={selectedTemplate}
                             onChange={e => setSelectedTemplate(e.target.value)}
@@ -72,7 +72,7 @@ const SendNotification = () => {
                                 marginBottom: '1rem'
                             }}
                         >
-                            <option value="">-- Choose a template --</option>
+                            <option value="">-- 請選擇 --</option>
                             {templates.map(t => (
                                 <option key={t.id} value={t.id}>{t.name}</option>
                             ))}
@@ -80,13 +80,13 @@ const SendNotification = () => {
 
                         {selectedTemplate && (
                             <div style={{ padding: '1rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '8px', whiteSpace: 'pre-wrap' }}>
-                                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Preview Pattern:</div>
+                                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>預覽內容：</div>
                                 {getTemplateContent()}
                             </div>
                         )}
                     </Card>
 
-                    <Card title="2. Select Customers">
+                    <Card title="2. 選擇客戶">
                         <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
                             {customers.map(c => (
                                 <div
@@ -107,21 +107,20 @@ const SendNotification = () => {
                                     {selectedCustomers.includes(c.id) && <CheckCircle size={16} color="var(--accent-primary)" />}
                                 </div>
                             ))}
-                            {customers.length === 0 && <p style={{ color: 'var(--text-secondary)' }}>No customers found.</p>}
+                            {customers.length === 0 && <p style={{ color: 'var(--text-secondary)' }}>無客戶資料。</p>}
                         </div>
                         <div style={{ marginTop: '1rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                            {selectedCustomers.length} customers selected.
+                            {selectedCustomers.length} 位客戶已選取。
                         </div>
                     </Card>
                 </div>
 
                 <div>
-                    <Card title="3. Confirm & Send">
+                    <Card title="3. 確認並發送">
                         <div style={{ marginBottom: '1.5rem' }}>
-                            <p style={{ marginBottom: '0.5rem' }}>This action will send notifications to <strong>{selectedCustomers.length}</strong> recipients.</p>
+                            <p style={{ marginBottom: '0.5rem' }}>此操作將發送通知給 <strong>{selectedCustomers.length}</strong> 位收件者。</p>
                             <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                                Note: Actual values for variables (e.g., {'{{order_id}}'}) will be retrieved from the backend/XLS source in the final version.
-                                For this demo, they will be sent as-is or replaced with defaults.
+                                注意：實際變數 (如 {'{{order_id}}'}) 將由後端或 XLS 檔案提供。此處僅為預覽。
                             </p>
                         </div>
 
@@ -146,7 +145,7 @@ const SendNotification = () => {
                             disabled={!selectedTemplate || selectedCustomers.length === 0 || sending}
                             style={{ width: '100%', justifyContent: 'center', opacity: (!selectedTemplate || selectedCustomers.length === 0 || sending) ? 0.5 : 1 }}
                         >
-                            {sending ? 'Sending...' : <><Send size={18} /> Send Notifications</>}
+                            {sending ? '發送中...' : <><Send size={18} /> 發送通知</>}
                         </Button>
                     </Card>
                 </div>
