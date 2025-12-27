@@ -54,6 +54,7 @@ services:
       - ./backend:/var/www/html
     environment:
       - CI_ENVIRONMENT=development
+      - TZ=Asia/Taipei
     depends_on:
       - db
     restart: unless-stopped
@@ -66,6 +67,7 @@ services:
       MYSQL_DATABASE: ${DB_NAME:-order_notify}
       MYSQL_USER: ${DB_USER:-user}
       MYSQL_PASSWORD: ${DB_PASSWORD:-password}
+      TZ: Asia/Taipei
     ports:
       - "${DB_PORT:-3307}:3306"
     volumes:
