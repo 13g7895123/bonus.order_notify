@@ -26,11 +26,9 @@ RUN echo '#!/bin/bash\n\
     set -e\n\
     cd /var/www/html\n\
     \n\
-    # Install composer dependencies if vendor does not exist\n\
-    if [ ! -d "vendor" ] || [ ! -f "vendor/autoload.php" ]; then\n\
-    echo "Installing composer dependencies..."\n\
+    # Always install/update composer dependencies to ensure they match lock file\n\
+    echo "Checking composer dependencies..."\n\
     composer install --no-dev --optimize-autoloader --no-interaction\n\
-    fi\n\
     \n\
     # Set permissions\n\
     chmod -R 777 /var/www/html/writable 2>/dev/null || true\n\
