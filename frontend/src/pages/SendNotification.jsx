@@ -191,7 +191,10 @@ const SendNotification = () => {
             if (res.matched && res.matched.length > 0) {
                 const matchedIds = res.matched.map(c => c.id);
                 // Merge matched IDs with current selection avoiding duplicates
-                setSelectedCustomers(prev => [...new Set([...prev, ...matchedIds])]);
+                setSelectedCustomers(prev => {
+                    const merged = [...new Set([...prev, ...matchedIds])];
+                    return merged;
+                });
             }
         } catch (e) {
             alert('匯入失敗，請確認檔案格式是否正確');
@@ -214,13 +217,33 @@ const SendNotification = () => {
         // previewLocal = false: logic for Modal (showing specific user example)
 
         if (!selectedTemplate) return null;
+        // Ensure we match by ID (both as numbers or strings)
         const tmpl = templates.find(t => String(t.id) === String(selectedTemplate));
         if (!tmpl) return null;
 
         let content = tmpl.content || '';
 
+        // Determine Preview Target Data
+        let previewName = '王小明';
+        let previewData = null;
+
+        if (!previewLocal && selectedCustomers.length > 0) {
+            const firstCid = selectedCustomers[0];
+            const customer = customers.find(c => c.id === firstCid);
+            if (customer) {
+                previewName = customer.custom_name || customer.name || '客戶';
+            }
+            if (importData?.matched) {
+                const match = importData.matched.find(m => m.id === firstCid);
+                if (match) previewData = match.row_data;
+            }
+        }
+
         // 1. Highlight system variable
-        content = content.replace(/\{\{name\}\}/g, '<span class="var-system">王小明</span>');
+        const nameDisplay = previewLocal
+            ? '<span class="var-system">王小明</span>'
+            : `<span class="var-system">${previewName}</span>`;
+        content = content.replace(/\{\{name\}\}/g, nameDisplay);
 
         // 2. Highlight user variables
         variables.forEach(v => {
@@ -235,15 +258,17 @@ const SendNotification = () => {
                     val = variableValues[v];
                 }
             } else {
-                // Modal Preview: Pick the first selected customer
-                const firstCid = selectedCustomers[0];
-                const imported = importData?.matched?.find(m => m.id === firstCid);
-
-                if (header && imported && imported.row_data) {
-                    val = imported.row_data[header] || '(空)';
-                } else {
-                    val = variableValues[v] || '(空)';
+                // Modal Preview
+                if (header && previewData) {
+                    val = previewData[header] || '';
                 }
+
+                // Fallback to manual value if empty or no XLS data found for this specific user
+                if (!val) {
+                    val = variableValues[v] || '';
+                }
+
+                if (!val) val = '(空)';
             }
 
             const display = val ? `<span class="var-filled">${val}</span>` : `<span class="var-empty">{{${v}}}</span>`;
@@ -251,6 +276,15 @@ const SendNotification = () => {
         });
 
         return content;
+    };
+
+    // Helper to get preview user name
+    const getPreviewUserName = () => {
+        if (selectedCustomers.length > 0) {
+            const c = customers.find(x => x.id === selectedCustomers[0]);
+            return c ? (c.custom_name || c.name) : '未知客戶';
+        }
+        return '';
     };
 
     return (
@@ -288,7 +322,7 @@ const SendNotification = () => {
 
                         <div style={{ marginBottom: '1.5rem' }}>
                             <p style={{ marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>您即將發送通知給 <strong>{selectedCustomers.length}</strong> 位客戶。</p>
-                            <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>以下是預覽 (以第一位選取者為例)：</p>
+                            <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>以下是預覽 (以第一位選取者 <strong>{getPreviewUserName()}</strong> 為例)：</p>
                         </div>
 
                         <div style={{
