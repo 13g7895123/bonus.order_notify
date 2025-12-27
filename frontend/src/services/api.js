@@ -65,5 +65,8 @@ export const api = {
     },
     line: {
         getUsers: async () => (await fetch(`${API_URL}/line/users`, { headers: getHeaders() })).json()
+    },
+    stats: {
+        get: async () => (await fetch(`${API_URL}/stats`, { headers: getHeaders() })).json()
     }
 };
