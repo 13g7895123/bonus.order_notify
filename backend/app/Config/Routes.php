@@ -48,6 +48,7 @@ $routes->group('api', ['namespace' => 'App\Controllers\Api'], function ($routes)
     // User Management (Admin)
     $routes->get('users', 'Users::index');
     $routes->get('users/me', 'Users::me');
+    $routes->put('users/me', 'Users::updateProfile');
     $routes->post('users', 'Users::create');
     $routes->put('users/(:num)', 'Users::update/$1');
     $routes->delete('users/(:num)', 'Users::delete/$1');

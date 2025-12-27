@@ -335,6 +335,30 @@ Base URL: `/api`
   }
   ```
 
+### Update Profile (All Users)
+- **Endpoint**: `PUT /users/me`
+- **Body**:
+  ```json
+  {
+    "name": "New Name",
+    "current_password": "current_password",
+    "password": "new_password",
+    "line_channel_secret": "...",
+    "line_channel_access_token": "..."
+  }
+  ```
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "message": "個人資料已更新"
+  }
+  ```
+- **說明**:
+  - All users can call this endpoint to update their own profile
+  - `current_password` is required when changing password
+  - All fields are optional
+
 ## Multi-Tenant Webhook
 
 ### LINE Webhook (Multi-tenant)
@@ -344,3 +368,31 @@ Base URL: `/api`
   - `key` parameter identifies the user
   - Configure this URL in LINE Developers Console
   - Example: `https://your-domain.com/api/line/webhook?key=abc123...`
+
+## Multi-Tenant Data Isolation
+
+### Data Isolation Mechanism
+All API endpoints automatically filter data by the logged-in user's `user_id`:
+
+| Table | Isolation |
+|-------|-----------|
+| `customers` | Only access customers with matching `user_id` |
+| `templates` | Only access templates with matching `user_id` |
+| `messages` | Only access messages with matching `user_id` |
+| `line_users` | Only access LINE users with matching `user_id` |
+
+### User-Specific Settings
+Each user has their own:
+- LINE Bot credentials (Channel Secret, Access Token)
+- Webhook URL (identified by API Key)
+- Monthly message quota
+
+### Permission Control
+
+| Feature | Admin | User |
+|---------|:-----:|:----:|
+| User Management (CRUD) | ✅ | ❌ |
+| View all user statistics | ✅ | ❌ |
+| View/Edit own profile | ✅ | ✅ |
+| Change password | ✅ | ✅ |
+| Operate own data | ✅ | ✅ |

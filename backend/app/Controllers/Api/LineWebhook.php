@@ -178,14 +178,31 @@ class LineWebhook extends ResourceController
     }
 
     /**
-     * Get all LINE users (for linking to customers)
+     * Get all LINE users (for linking to customers) - filtered by current user
      */
     public function listUsers()
     {
+        // Get current user for filtering
+        $authHeader = $this->request->getHeaderLine('Authorization');
+        $userId = null;
+        if (preg_match('/Bearer\s+(.*)$/i', $authHeader, $matches)) {
+            $token = $matches[1];
+            $db = \Config\Database::connect();
+            $userToken = $db->table('user_tokens')->where('token', $token)->get()->getRowArray();
+            if ($userToken) {
+                $userId = $userToken['user_id'];
+            }
+        }
+
+        if (!$userId) {
+            return $this->failUnauthorized();
+        }
+
         $db = \Config\Database::connect();
         $users = $db->table('line_users')
             ->select('line_users.*, customers.custom_name as linked_customer_name')
-            ->join('customers', 'customers.line_uid = line_users.line_uid', 'left')
+            ->join('customers', 'customers.line_uid = line_users.line_uid AND customers.user_id = line_users.user_id', 'left')
+            ->where('line_users.user_id', $userId)
             ->orderBy('line_users.created_at', 'DESC')
             ->get()->getResultArray();
 

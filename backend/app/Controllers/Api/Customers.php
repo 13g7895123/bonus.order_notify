@@ -3,19 +3,30 @@
 namespace App\Controllers\Api;
 
 use CodeIgniter\RESTful\ResourceController;
+use App\Traits\AuthTrait;
 
 class Customers extends ResourceController
 {
+    use AuthTrait;
+
     protected $format = 'json';
 
     public function index()
     {
+        $userId = $this->getCurrentUserId();
+        if (!$userId) {
+            return $this->failUnauthorized();
+        }
+
         $db = \Config\Database::connect();
         $builder = $db->table('customers');
 
+        // Filter by user_id for multi-tenant isolation
+        $builder->where('customers.user_id', $userId);
+
         // Join with line_users to get LINE profile data
         $builder->select('customers.*, line_users.display_name as line_display_name, line_users.picture_url, line_users.status_message');
-        $builder->join('line_users', 'line_users.line_uid = customers.line_uid', 'left');
+        $builder->join('line_users', 'line_users.line_uid = customers.line_uid AND line_users.user_id = customers.user_id', 'left');
 
         $search = $this->request->getGet('search');
         if ($search) {
@@ -32,6 +43,11 @@ class Customers extends ResourceController
 
     public function create()
     {
+        $userId = $this->getCurrentUserId();
+        if (!$userId) {
+            return $this->failUnauthorized();
+        }
+
         $json = $this->request->getJSON();
         if (!$json || !isset($json->line_uid)) {
             return $this->failValidationErrors('line_uid is required');
@@ -41,6 +57,12 @@ class Customers extends ResourceController
 
         // Check if update or create
         if (isset($json->id) && $json->id) {
+            // Verify ownership before update
+            $existing = $db->table('customers')->where('id', $json->id)->where('user_id', $userId)->get()->getRowArray();
+            if (!$existing) {
+                return $this->failNotFound('Customer not found');
+            }
+
             $data = [
                 'line_uid' => $json->line_uid,
                 'custom_name' => $json->custom_name ?? null,
@@ -50,6 +72,7 @@ class Customers extends ResourceController
             return $this->respond(['id' => $json->id, ...$data]);
         } else {
             $data = [
+                'user_id' => $userId,
                 'line_uid' => $json->line_uid,
                 'custom_name' => $json->custom_name ?? null,
                 'created_at' => date('Y-m-d H:i:s')
@@ -62,7 +85,19 @@ class Customers extends ResourceController
 
     public function delete($id = null)
     {
+        $userId = $this->getCurrentUserId();
+        if (!$userId) {
+            return $this->failUnauthorized();
+        }
+
         $db = \Config\Database::connect();
+
+        // Verify ownership before delete
+        $existing = $db->table('customers')->where('id', $id)->where('user_id', $userId)->get()->getRowArray();
+        if (!$existing) {
+            return $this->failNotFound('Customer not found');
+        }
+
         $db->table('customers')->where('id', $id)->delete();
         return $this->respondDeleted(['id' => $id]);
     }

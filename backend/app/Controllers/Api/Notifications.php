@@ -3,13 +3,23 @@
 namespace App\Controllers\Api;
 
 use CodeIgniter\RESTful\ResourceController;
+use App\Traits\AuthTrait;
 
 class Notifications extends ResourceController
 {
+    use AuthTrait;
+
     protected $format = 'json';
 
     public function send()
     {
+        $user = $this->getCurrentUser();
+        if (!$user) {
+            return $this->failUnauthorized();
+        }
+
+        $userId = (int)$user['id'];
+
         $json = $this->request->getJSON();
         if (!$json || !isset($json->template_id)) {
             return $this->failValidationErrors('template_id is required');
@@ -29,15 +39,15 @@ class Notifications extends ResourceController
 
         $db = \Config\Database::connect();
 
-        // Validate LINE API settings exist
-        $channelSecret = $db->table('settings')->where('key', 'line_channel_secret')->get()->getRowArray();
-        $channelAccessToken = $db->table('settings')->where('key', 'line_channel_access_token')->get()->getRowArray();
+        // Use user's LINE settings instead of global settings
+        $accessToken = $user['line_channel_access_token'] ?? '';
 
-        if (!$channelSecret || !$channelAccessToken || empty($channelSecret['value']) || empty($channelAccessToken['value'])) {
-            return $this->fail('LINE API 尚未設定，請先至系統設定頁面填寫 Channel Secret 與 Access Token', 400);
+        if (empty($accessToken)) {
+            return $this->fail('LINE API 尚未設定，請先至個人設定頁面填寫 Channel Access Token', 400);
         }
 
-        $template = $db->table('templates')->where('id', $json->template_id)->get()->getRowArray();
+        // Verify template belongs to this user
+        $template = $db->table('templates')->where('id', $json->template_id)->where('user_id', $userId)->get()->getRowArray();
 
         if (!$template) return $this->failNotFound('Template not found');
 
@@ -57,10 +67,11 @@ class Notifications extends ResourceController
             // Merge variables: Recipient overrides Global
             $finalVariables = array_merge((array)$globalVariables, (array)$recipientVariables);
 
-            $customer = $db->table('customers')->where('id', $cid)->get()->getRowArray();
+            // Verify customer belongs to this user
+            $customer = $db->table('customers')->where('id', $cid)->where('user_id', $userId)->get()->getRowArray();
             if ($customer) {
                 // Replace variables - use custom_name or get display_name from line_users
-                $lineUser = $db->table('line_users')->where('line_uid', $customer['line_uid'])->get()->getRowArray();
+                $lineUser = $db->table('line_users')->where('line_uid', $customer['line_uid'])->where('user_id', $userId)->get()->getRowArray();
                 $displayName = $customer['custom_name'] ?: ($lineUser['display_name'] ?? 'Customer');
 
                 $content = $template['content'];
@@ -74,10 +85,11 @@ class Notifications extends ResourceController
                 }
 
                 // Call LINE Message API
-                $lineResult = $this->sendLineMessage($channelAccessToken['value'], $customer['line_uid'], $content);
+                $lineResult = $this->sendLineMessage($accessToken, $customer['line_uid'], $content);
 
-                // Log Message
+                // Log Message with user_id
                 $db->table('messages')->insert([
+                    'user_id' => $userId,
                     'customer_id' => $customer['id'],
                     'sender' => 'system',
                     'content' => $content,
@@ -103,6 +115,11 @@ class Notifications extends ResourceController
 
     public function importPreview()
     {
+        $userId = $this->getCurrentUserId();
+        if (!$userId) {
+            return $this->failUnauthorized();
+        }
+
         log_message('debug', 'Notifications::importPreview started');
         $file = $this->request->getFile('file');
         if (!$file || !$file->isValid()) {
@@ -136,8 +153,10 @@ class Notifications extends ResourceController
 
                 if (empty($name)) continue;
 
+                // Only match customers belonging to this user
                 $customer = $db->table('customers')
                     ->where('custom_name', $name)
+                    ->where('user_id', $userId)
                     ->get()->getRowArray();
 
                 if ($customer) {
@@ -175,12 +194,12 @@ class Notifications extends ResourceController
     /**
      * Send message via LINE Messaging API
      */
-    private function sendLineMessage(string $accessToken, string $userId, string $message): array
+    private function sendLineMessage(string $accessToken, string $lineUserId, string $message): array
     {
         $url = 'https://api.line.me/v2/bot/message/push';
 
         $data = [
-            'to' => $userId,
+            'to' => $lineUserId,
             'messages' => [
                 [
                     'type' => 'text',

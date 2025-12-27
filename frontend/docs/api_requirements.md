@@ -341,6 +341,30 @@
   }
   ```
 
+### 9.7 更新個人資料（所有使用者可用）
+- **PUT** `/api/users/me`
+- **Request**:
+  ```json
+  {
+    "name": "新名稱",
+    "current_password": "目前密碼",
+    "password": "新密碼",
+    "line_channel_secret": "...",
+    "line_channel_access_token": "..."
+  }
+  ```
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "message": "個人資料已更新"
+  }
+  ```
+- **說明**:
+  - 所有使用者皆可呼叫，用於更新自己的資料
+  - 變更密碼時需提供 `current_password` 驗證
+  - 所有欄位皆為選填
+
 ## 10. 多租戶 Webhook
 
 ### 10.1 LINE Webhook (多租戶)
@@ -350,3 +374,31 @@
   - `key` 參數用於識別使用者
   - LINE Developers Console 設定 Webhook URL 時需包含 key 參數
   - 範例: `https://your-domain.com/api/line/webhook?key=abc123...`
+
+## 11. 多租戶資料隔離
+
+### 11.1 資料隔離機制
+所有 API 端點都會自動根據登入使用者的 `user_id` 過濾資料：
+
+| 資料表 | 隔離方式 |
+|--------|----------|
+| `customers` | 只能存取 `user_id` 為當前使用者的客戶 |
+| `templates` | 只能存取 `user_id` 為當前使用者的範本 |
+| `messages` | 只能存取 `user_id` 為當前使用者的訊息 |
+| `line_users` | 只能存取 `user_id` 為當前使用者的 LINE 使用者 |
+
+### 11.2 使用者專屬設定
+每位使用者擁有獨立的：
+- LINE Bot 憑證（Channel Secret、Access Token）
+- Webhook URL（使用 API Key 識別）
+- 每月訊息配額
+
+### 11.3 權限控制
+
+| 功能 | Admin | User |
+|------|:-----:|:----:|
+| 使用者管理 (CRUD) | ✅ | ❌ |
+| 查看所有使用者統計 | ✅ | ❌ |
+| 查看/編輯個人資料 | ✅ | ✅ |
+| 變更密碼 | ✅ | ✅ |
+| 操作自己的資料 | ✅ | ✅ |

@@ -240,4 +240,48 @@ class Users extends ResourceController
             'stats' => $stats
         ]);
     }
+
+    /**
+     * Update current user's own profile (password, LINE settings)
+     */
+    public function updateProfile()
+    {
+        $currentUser = $this->getCurrentUser();
+        if (!$currentUser) {
+            return $this->failUnauthorized();
+        }
+
+        $json = $this->request->getJSON();
+        $db = \Config\Database::connect();
+
+        $data = ['updated_at' => date('Y-m-d H:i:s')];
+
+        // Allow updating name
+        if (isset($json->name) && !empty($json->name)) {
+            $data['name'] = $json->name;
+        }
+
+        // Allow updating password
+        if (isset($json->password) && !empty($json->password)) {
+            // Optionally verify current password
+            if (isset($json->current_password)) {
+                if (!password_verify($json->current_password, $currentUser['password'])) {
+                    return $this->failValidationErrors('目前密碼不正確');
+                }
+            }
+            $data['password'] = password_hash($json->password, PASSWORD_DEFAULT);
+        }
+
+        // Allow updating LINE settings
+        if (isset($json->line_channel_secret)) {
+            $data['line_channel_secret'] = $json->line_channel_secret;
+        }
+        if (isset($json->line_channel_access_token)) {
+            $data['line_channel_access_token'] = $json->line_channel_access_token;
+        }
+
+        $db->table('users')->where('id', $currentUser['id'])->update($data);
+
+        return $this->respond(['success' => true, 'message' => '個人資料已更新']);
+    }
 }

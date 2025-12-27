@@ -72,6 +72,7 @@ export const api = {
     users: {
         list: async () => (await fetch(`${API_URL}/users`, { headers: getHeaders() })).json(),
         me: async () => (await fetch(`${API_URL}/users/me`, { headers: getHeaders() })).json(),
+        updateProfile: async (data) => fetch(`${API_URL}/users/me`, { method: 'PUT', headers: getHeaders(), body: JSON.stringify(data) }),
         create: async (data) => fetch(`${API_URL}/users`, { method: 'POST', headers: getHeaders(), body: JSON.stringify(data) }),
         update: async (id, data) => fetch(`${API_URL}/users/${id}`, { method: 'PUT', headers: getHeaders(), body: JSON.stringify(data) }),
         delete: async (id) => fetch(`${API_URL}/users/${id}`, { method: 'DELETE', headers: getHeaders() }),
