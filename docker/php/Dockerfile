@@ -14,5 +14,7 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
 
-# Adjust permissions
-RUN chown -R www-data:www-data /var/www/html
+# Create startup script to handle permissions
+RUN echo '#!/bin/bash\nchmod -R 777 /var/www/html/writable 2>/dev/null || true\nphp-fpm' > /usr/local/bin/start.sh && chmod +x /usr/local/bin/start.sh
+
+CMD ["/usr/local/bin/start.sh"]
