@@ -2,15 +2,27 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
-import { Users, Link, RefreshCw } from 'lucide-react';
+import { Users, Link, RefreshCw, Copy, Check } from 'lucide-react';
 
 const LineUsers = () => {
     const [lineUsers, setLineUsers] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [profile, setProfile] = useState(null);
+    const [copied, setCopied] = useState(false);
 
     useEffect(() => {
+        loadProfile();
         loadLineUsers();
     }, []);
+
+    const loadProfile = async () => {
+        try {
+            const data = await api.users.me();
+            setProfile(data);
+        } catch (e) {
+            console.error('Failed to load profile', e);
+        }
+    };
 
     const loadLineUsers = async () => {
         setLoading(true);
@@ -22,6 +34,19 @@ const LineUsers = () => {
         }
         setLoading(false);
     };
+
+    const copyWebhookUrl = async () => {
+        if (!profile?.webhook_key) return;
+        const baseUrl = window.location.origin.replace(':8080', ':8081');
+        const url = `${baseUrl}/api/line/webhook?key=${profile.webhook_key}`;
+        await navigator.clipboard.writeText(url);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    const webhookUrl = profile?.webhook_key
+        ? `${window.location.origin.replace(':8080', ':8081')}/api/line/webhook?key=${profile.webhook_key}`
+        : '載入中...';
 
     return (
         <div>
@@ -36,17 +61,33 @@ const LineUsers = () => {
             </div>
 
             <Card style={{ marginBottom: '1.5rem', padding: '1rem', backgroundColor: 'rgba(59, 130, 246, 0.1)', border: '1px solid var(--accent-primary)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <Link size={20} color="var(--accent-primary)" />
-                    <div>
-                        <strong>Webhook URL:</strong>
-                        <code style={{ marginLeft: '10px', backgroundColor: 'var(--bg-tertiary)', padding: '4px 8px', borderRadius: '4px' }}>
-                            https://your-domain.com/api/line/webhook
-                        </code>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
+                        <Link size={20} color="var(--accent-primary)" />
+                        <div style={{ flex: 1 }}>
+                            <strong>您的 Webhook URL:</strong>
+                            <code style={{
+                                marginLeft: '10px',
+                                backgroundColor: 'var(--bg-tertiary)',
+                                padding: '4px 8px',
+                                borderRadius: '4px',
+                                display: 'block',
+                                marginTop: '8px',
+                                fontSize: '0.85rem',
+                                wordBreak: 'break-all'
+                            }}>
+                                {webhookUrl}
+                            </code>
+                        </div>
                     </div>
+                    {profile?.webhook_key && (
+                        <Button onClick={copyWebhookUrl} variant="secondary" style={{ flexShrink: 0 }}>
+                            {copied ? <><Check size={16} /> 已複製</> : <><Copy size={16} /> 複製</>}
+                        </Button>
+                    )}
                 </div>
-                <p style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                    請將此 URL 設定到您的 LINE Developers Console 中的 Webhook URL。
+                <p style={{ marginTop: '0.75rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                    請將此 URL 設定到您的 LINE Developers Console 中的 Messaging API → Webhook URL。
                 </p>
             </Card>
 
@@ -104,3 +145,4 @@ const LineUsers = () => {
 };
 
 export default LineUsers;
+

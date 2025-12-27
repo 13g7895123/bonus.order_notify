@@ -53,6 +53,57 @@ const Sidebar = () => {
                 ))}
             </nav>
             <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+                {/* User Info */}
+                {user && (
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '12px',
+                        marginBottom: '0.5rem',
+                        backgroundColor: 'rgba(255,255,255,0.03)',
+                        borderRadius: '8px'
+                    }}>
+                        <div style={{
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '50%',
+                            backgroundColor: 'var(--accent-primary)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'white',
+                            fontSize: '0.9rem',
+                            fontWeight: 'bold'
+                        }}>
+                            {user.name?.charAt(0)?.toUpperCase() || user.username?.charAt(0)?.toUpperCase() || 'U'}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{
+                                fontWeight: '600',
+                                color: 'var(--text-primary)',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis'
+                            }}>
+                                {user.name || user.username}
+                            </div>
+                            <div style={{
+                                fontSize: '0.75rem',
+                                color: 'var(--text-secondary)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                            }}>
+                                {user.role === 'admin' ? (
+                                    <><Shield size={12} /> 管理員</>
+                                ) : (
+                                    '一般使用者'
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
                 <button
                     onClick={logout}
                     style={{

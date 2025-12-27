@@ -108,6 +108,15 @@ class Users extends ResourceController
         $db->table('users')->insert($data);
         $id = $db->insertID();
 
+        // Create default template for the new user
+        $db->table('templates')->insert([
+            'user_id' => $id,
+            'name' => '出貨通知',
+            'content' => '親愛的 {{name}}，您的訂單已經出貨。',
+            'variables' => null,
+            'created_at' => date('Y-m-d H:i:s')
+        ]);
+
         return $this->respondCreated([
             'id' => $id,
             'username' => $data['username'],
