@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { api } from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -7,7 +8,6 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Check localStorage for mock session
         const storedUser = localStorage.getItem('user');
         if (storedUser) {
             setUser(JSON.parse(storedUser));
@@ -15,20 +15,18 @@ export const AuthProvider = ({ children }) => {
         setLoading(false);
     }, []);
 
-    const login = (email, password) => {
-        // Mock login
-        if (email === 'admin@example.com' && password === 'admin') {
-            const u = { name: 'Admin User', email };
+    const login = async (email, password) => {
+        const success = await api.auth.login(email, password);
+        if (success) {
+            const u = JSON.parse(localStorage.getItem('user'));
             setUser(u);
-            localStorage.setItem('user', JSON.stringify(u));
-            return true;
         }
-        return false;
+        return success;
     };
 
     const logout = () => {
+        api.auth.logout();
         setUser(null);
-        localStorage.removeItem('user');
     };
 
     return (

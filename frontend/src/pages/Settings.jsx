@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { api } from '../services/api';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
@@ -9,16 +10,19 @@ const Settings = () => {
     const [saved, setSaved] = useState(false);
 
     useEffect(() => {
-        const savedToken = localStorage.getItem('line_usage_token');
-        if (savedToken) setToken(savedToken);
+        loadSettings();
     }, []);
 
-    const handleSave = () => {
-        localStorage.setItem('line_usage_token', token);
+    const loadSettings = async () => {
+        const data = await api.settings.get();
+        if (data.line_usage_token) setToken(data.line_usage_token);
+    };
+
+    const handleSave = async () => {
+        await api.settings.update({ line_usage_token: token });
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
     };
-
     return (
         <div>
             <div className="flex justify-between items-center" style={{ marginBottom: '2rem' }}>

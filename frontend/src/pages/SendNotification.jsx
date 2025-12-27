@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { api } from '../services/api';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import { Send, CheckCircle, AlertCircle } from 'lucide-react';
@@ -12,26 +13,33 @@ const SendNotification = () => {
     const [result, setResult] = useState(null);
 
     useEffect(() => {
-        const t = localStorage.getItem('templates');
-        if (t) setTemplates(JSON.parse(t));
-        const c = localStorage.getItem('customers');
-        if (c) setCustomers(JSON.parse(c));
+        loadData();
     }, []);
+
+    const loadData = async () => {
+        const t = await api.templates.list();
+        setTemplates(t);
+        const c = await api.customers.list();
+        setCustomers(c);
+    };
 
     const handleSend = async () => {
         setSending(true);
         setResult(null);
 
-        // Simulate sending
-        await new Promise(r => setTimeout(r, 1500));
+        try {
+            const res = await api.notifications.send({
+                template_id: selectedTemplate,
+                customer_ids: selectedCustomers
+            });
+            setResult({ success: res.success, message: res.message });
+        } catch (e) {
+            setResult({ success: false, message: '發送失敗' });
+        }
 
-        // Mock Result
-        const successCount = selectedCustomers.length;
-        setResult({ success: true, message: `成功發送給 ${successCount} 位客戶。` });
         setSending(false);
         setSelectedCustomers([]);
     };
-
     const toggleCustomer = (id) => {
         if (selectedCustomers.includes(id)) {
             setSelectedCustomers(selectedCustomers.filter(cid => cid !== id));

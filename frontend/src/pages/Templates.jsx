@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { api } from '../services/api';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
@@ -10,23 +11,12 @@ const Templates = () => {
     const [currentTemplate, setCurrentTemplate] = useState({ id: null, name: '', content: '' });
 
     useEffect(() => {
-        const saved = localStorage.getItem('templates');
-        if (saved) {
-            setTemplates(JSON.parse(saved));
-        } else {
-            // Mock data
-            const mock = [
-                { id: 1, name: '訂單確認', content: '嗨 {{name}}，您的訂單 {{order_id}} 已確認。' },
-                { id: 2, name: '出貨通知', content: '哈囉 {{name}}，您的訂單 {{order_id}} 已出貨。追蹤號碼：{{tracking_number}}' }
-            ];
-            setTemplates(mock);
-            localStorage.setItem('templates', JSON.stringify(mock));
-        }
+        loadTemplates();
     }, []);
 
-    const saveTemplates = (newTemplates) => {
-        setTemplates(newTemplates);
-        localStorage.setItem('templates', JSON.stringify(newTemplates));
+    const loadTemplates = async () => {
+        const data = await api.templates.list();
+        setTemplates(data);
     };
 
     const handleEdit = (tmpl) => {
@@ -34,23 +24,24 @@ const Templates = () => {
         setIsEditing(true);
     };
 
-    const handleDelete = (id) => {
+    const handleDelete = async (id) => {
         if (confirm('確定要刪除此範本嗎？')) {
-            saveTemplates(templates.filter(t => t.id !== id));
+            await api.templates.delete(id);
+            loadTemplates();
         }
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!currentTemplate.name || !currentTemplate.content) return;
 
         if (currentTemplate.id) {
             // Update
-            saveTemplates(templates.map(t => t.id === currentTemplate.id ? currentTemplate : t));
+            await api.templates.update(currentTemplate.id, currentTemplate);
         } else {
             // Create
-            const newId = Math.max(...templates.map(t => t.id), 0) + 1;
-            saveTemplates([...templates, { ...currentTemplate, id: newId }]);
+            await api.templates.create(currentTemplate);
         }
+        loadTemplates();
         setIsEditing(false);
         setCurrentTemplate({ id: null, name: '', content: '' });
     };

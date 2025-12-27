@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { api } from '../services/api';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Card from '../components/ui/Card';
@@ -13,12 +14,13 @@ const Login = () => {
     const { login } = useAuth();
     const navigate = useNavigate();
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        if (login(email, password)) {
+        const success = await login(email, password); // AuthContext now needs to use api
+        if (success) {
             navigate('/');
         } else {
-            setError('登入失敗，請檢查帳號密碼 (預設: admin@example.com / admin)');
+            setError('登入失敗，請檢查帳號密碼');
         }
     };
 

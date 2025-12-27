@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { api } from '../services/api';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
@@ -11,23 +12,12 @@ const Customers = () => {
     const [search, setSearch] = useState('');
 
     useEffect(() => {
-        const saved = localStorage.getItem('customers');
-        if (saved) {
-            setCustomers(JSON.parse(saved));
-        } else {
-            // Mock
-            const mock = [
-                { id: 1, name: 'Alice Smith', line_id: 'U12345678' },
-                { id: 2, name: 'Bob Jones', line_id: 'U87654321' }
-            ];
-            setCustomers(mock);
-            localStorage.setItem('customers', JSON.stringify(mock));
-        }
-    }, []);
+        loadCustomers();
+    }, [search]);
 
-    const saveCustomers = (newCustomers) => {
-        setCustomers(newCustomers);
-        localStorage.setItem('customers', JSON.stringify(newCustomers));
+    const loadCustomers = async () => {
+        const data = await api.customers.list(search);
+        setCustomers(data);
     };
 
     const handleEdit = (cust) => {
@@ -35,29 +25,27 @@ const Customers = () => {
         setIsEditing(true);
     };
 
-    const handleDelete = (id) => {
+    const handleDelete = async (id) => {
         if (confirm('確定要刪除此客戶設定嗎？')) {
-            saveCustomers(customers.filter(c => c.id !== id));
+            await api.customers.delete(id);
+            loadCustomers();
         }
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!currentCustomer.name || !currentCustomer.line_id) return;
 
-        if (currentCustomer.id) {
-            saveCustomers(customers.map(c => c.id === currentCustomer.id ? currentCustomer : c));
-        } else {
-            const newId = Math.max(...customers.map(c => c.id), 0) + 1;
-            saveCustomers([...customers, { ...currentCustomer, id: newId }]);
-        }
+        // Create/Update uses same endpoint in my implementation plan logic or check ID?
+        // My api.js uses POST for save. Let's ensure Controller handles it.
+        // Controller logic: check if ID exists in body. 
+        // And in handleSave 'currentCustomer' has 'id' if editing.
+        await api.customers.save(currentCustomer);
+        loadCustomers();
         setIsEditing(false);
         setCurrentCustomer({ id: null, name: '', line_id: '' });
     };
 
-    const filteredCustomers = customers.filter(c =>
-        c.name.toLowerCase().includes(search.toLowerCase()) ||
-        c.line_id.toLowerCase().includes(search.toLowerCase())
-    );
+    const filteredCustomers = customers; // filtering handled by API now
 
     return (
         <div>
