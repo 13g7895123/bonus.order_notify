@@ -24,8 +24,8 @@ services:
   # PHP-FPM
   php:
     build:
-      context: ./docker/php
-      dockerfile: Dockerfile
+      context: ./backend
+      dockerfile: ../docker/php/Dockerfile
     volumes:
       - ./backend:/var/www/html
     environment:

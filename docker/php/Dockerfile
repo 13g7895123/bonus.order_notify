@@ -1,30 +1,38 @@
 FROM php:8.2-fpm
 
-# Install dependencies for CI4
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     libicu-dev \
     libonig-dev \
     libcurl4-openssl-dev \
+    libzip-dev \
     zip \
     unzip \
     git \
-    && docker-php-ext-install intl mbstring pdo pdo_mysql mysqli curl \
+    && docker-php-ext-install intl mbstring pdo pdo_mysql mysqli curl zip \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Install Composer
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+# Install Composer globally
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
 
-# Create startup script to handle permissions and composer install
-RUN echo '#!/bin/bash\n\
-    set -e\n\
-    cd /var/www/html\n\
-    if [ ! -d "vendor" ]; then\n\
-    echo "Installing composer dependencies..."\n\
-    composer install --no-dev --optimize-autoloader --no-interaction\n\
-    fi\n\
-    chmod -R 777 /var/www/html/writable 2>/dev/null || true\n\
-    php-fpm -F' > /usr/local/bin/start.sh && chmod +x /usr/local/bin/start.sh
+# Copy composer files first for better caching
+COPY composer.json composer.lock* ./
 
-CMD ["/usr/local/bin/start.sh"]
+# Install dependencies
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts || true
+
+# Copy the rest of the application
+COPY . .
+
+# Run composer scripts after copying all files
+RUN composer dump-autoload --optimize --no-dev || true
+
+# Set permissions
+RUN chmod -R 777 /var/www/html/writable 2>/dev/null || true
+
+# Expose port
+EXPOSE 9000
+
+CMD ["php-fpm"]
