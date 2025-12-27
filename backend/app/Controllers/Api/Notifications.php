@@ -11,8 +11,20 @@ class Notifications extends ResourceController
     public function send()
     {
         $json = $this->request->getJSON();
-        if (!$json || !isset($json->template_id) || !isset($json->customer_ids)) {
-            return $this->failValidationErrors('template_id and customer_ids are required');
+        if (!$json || !isset($json->template_id)) {
+            return $this->failValidationErrors('template_id is required');
+        }
+
+        // Backward compatibility for simple array of IDs
+        if (isset($json->customer_ids) && is_array($json->customer_ids)) {
+            $recipients = [];
+            foreach ($json->customer_ids as $cid) {
+                $recipients[] = ['id' => $cid];
+            }
+        } elseif (isset($json->recipients) && is_array($json->recipients)) {
+            $recipients = $json->recipients;
+        } else {
+            return $this->failValidationErrors('recipients or customer_ids are required');
         }
 
         $db = \Config\Database::connect();
@@ -29,11 +41,22 @@ class Notifications extends ResourceController
 
         if (!$template) return $this->failNotFound('Template not found');
 
-        $customerIds = $json->customer_ids;
         $sentCount = 0;
         $errors = [];
 
-        foreach ($customerIds as $cid) {
+        // Global variables from request
+        $globalVariables = $json->variables ?? [];
+
+        foreach ($recipients as $recipient) {
+            $cid = $recipient->id ?? $recipient['id'] ?? null;
+            if (!$cid) continue;
+
+            // Per-recipient variables
+            $recipientVariables = $recipient->variables ?? $recipient['variables'] ?? [];
+
+            // Merge variables: Recipient overrides Global
+            $finalVariables = array_merge((array)$globalVariables, (array)$recipientVariables);
+
             $customer = $db->table('customers')->where('id', $cid)->get()->getRowArray();
             if ($customer) {
                 // Replace variables - use custom_name or get display_name from line_users
@@ -46,10 +69,8 @@ class Notifications extends ResourceController
                 $content = str_replace('{{name}}', $displayName, $content);
 
                 // 2. Replace User Variables
-                if (isset($json->variables) && is_object($json->variables)) {
-                    foreach ($json->variables as $key => $value) {
-                        $content = str_replace('{{' . $key . '}}', $value, $content);
-                    }
+                foreach ($finalVariables as $key => $value) {
+                    $content = str_replace('{{' . $key . '}}', $value, $content);
                 }
 
                 // Call LINE Message API
@@ -85,44 +106,55 @@ class Notifications extends ResourceController
         log_message('debug', 'Notifications::importPreview started');
         $file = $this->request->getFile('file');
         if (!$file || !$file->isValid()) {
-            log_message('error', 'Import XLS: Invalid file. Error: ' . ($file ? $file->getErrorString() : 'No file'));
             return $this->failValidationErrors('請上傳有效的檔案');
         }
 
         try {
-            log_message('debug', 'Import XLS: Loading file ' . $file->getTempName() . ' (Original: ' . $file->getName() . ')');
-
             // Explicitly set reader if possible to avoid detection issues with temp files
             $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($file->getTempName());
             $worksheet = $spreadsheet->getActiveSheet();
             $rows = $worksheet->toArray();
 
-            // A2 is (1, 0) index. Member Name is column A.
-            $names = [];
-            for ($i = 1; $i < count($rows); $i++) {
-                if (!empty($rows[$i][0])) {
-                    $names[] = trim($rows[$i][0]);
-                }
+            if (empty($rows)) {
+                return $this->failValidationErrors('檔案為空');
             }
 
-            if (empty($names)) {
-                return $this->failValidationErrors('檔案中沒有可讀取的會員姓名（從 A2 開始）');
-            }
+            // Row 0 is Headers
+            $headers = $rows[0];
+
+            // A2 is (1, 0) index. Member Name is column A.
+            // But now we essentially want to map rows to customers and return the data.
 
             $db = \Config\Database::connect();
             $matched = [];
             $notFound = [];
 
-            foreach ($names as $name) {
+            // Loop from row 1
+            for ($i = 1; $i < count($rows); $i++) {
+                $row = $rows[$i];
+                $name = trim($row[0] ?? ''); // Column A is name
+
+                if (empty($name)) continue;
+
                 $customer = $db->table('customers')
                     ->where('custom_name', $name)
                     ->get()->getRowArray();
 
                 if ($customer) {
+                    // Create an associated array for this row using headers
+                    $rowData = [];
+                    foreach ($headers as $index => $header) {
+                        // Skip empty headers
+                        if (!empty($header)) {
+                            $rowData[$header] = $row[$index] ?? '';
+                        }
+                    }
+
                     $matched[] = [
                         'id' => $customer['id'],
                         'custom_name' => $customer['custom_name'],
-                        'line_uid' => $customer['line_uid']
+                        'line_uid' => $customer['line_uid'],
+                        'row_data' => $rowData // Include raw data for variable mapping
                     ];
                 } else {
                     $notFound[] = $name;
@@ -130,11 +162,12 @@ class Notifications extends ResourceController
             }
 
             return $this->respond([
+                'headers' => array_filter($headers), // Return headers for frontend selection
                 'matched' => $matched,
                 'not_found' => array_values(array_unique($notFound))
             ]);
         } catch (\Throwable $e) {
-            log_message('error', 'Import XLS failed: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+            log_message('error', 'Import XLS failed: ' . $e->getMessage());
             return $this->fail('讀取檔案出錯：' . $e->getMessage());
         }
     }

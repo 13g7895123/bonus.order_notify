@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../services/api';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
-import { Send, CheckCircle, AlertCircle, Upload, Users, Info, Settings } from 'lucide-react';
+import { Send, CheckCircle, AlertCircle, Upload, Users, Info, Settings, X, Eye } from 'lucide-react';
 
 const SendNotification = () => {
     const [templates, setTemplates] = useState([]);
@@ -11,12 +11,22 @@ const SendNotification = () => {
     const [selectedCustomers, setSelectedCustomers] = useState([]);
     const [sending, setSending] = useState(false);
     const [result, setResult] = useState(null);
-    const [importResult, setImportResult] = useState(null);
     const [uploading, setUploading] = useState(false);
+
+    // Import Data State
+    const [importData, setImportData] = useState(null); // { headers: [], matched: [ {id, row_data} ], not_found: [] }
 
     // Variable Support
     const [variables, setVariables] = useState([]);
+
+    // Global manual values for variables
     const [variableValues, setVariableValues] = useState({});
+
+    // Mapping from Template Variable -> XLS Header
+    const [variableMapping, setVariableMapping] = useState({});
+
+    // Modal State
+    const [showPreviewModal, setShowPreviewModal] = useState(false);
 
     const fileInputRef = useRef(null);
 
@@ -29,6 +39,7 @@ const SendNotification = () => {
         if (!selectedTemplate) {
             setVariables([]);
             setVariableValues({});
+            setVariableMapping({});
             return;
         }
 
@@ -48,9 +59,17 @@ const SendNotification = () => {
         }
         setVariables(found);
 
-        // Reset values (or preserve if name matches? sticking to simple reset for clarity now)
-        // Ideally we keep value if key exists to avoid accidental clearing if switching back and forth
+        // Reset values
         setVariableValues(prev => {
+            const next = {};
+            found.forEach(v => {
+                next[v] = prev[v] || '';
+            });
+            return next;
+        });
+
+        // Initialize mapping to empty string (Manual Input) for found variables
+        setVariableMapping(prev => {
             const next = {};
             found.forEach(v => {
                 next[v] = prev[v] || '';
@@ -67,23 +86,68 @@ const SendNotification = () => {
         setCustomers(c);
     };
 
-    const handleSend = async () => {
-        setSending(true);
-        setResult(null);
+    const handlePreSend = () => {
+        // Validation
+        // If variable is mapped to Manual (empty string), check if manual value is provided
+        const missing = [];
+        variables.forEach(v => {
+            const source = variableMapping[v];
+            if (!source) { // Manual
+                if (!variableValues[v]) missing.push(v);
+            }
+            // If mapped to XLS header, we assume it's fine for now (or we could warn if some rows miss it)
+        });
 
-        // Validate variables
-        const missing = variables.filter(v => !variableValues[v]);
         if (missing.length > 0) {
-            alert(`請填寫所有範本變數: ${missing.join(', ')}`);
-            setSending(false);
+            alert(`請填寫以下變數的內容 (或選擇對應的 XLS 欄位): ${missing.join(', ')}`);
             return;
         }
+
+        if (selectedCustomers.length === 0) {
+            alert('請至少選擇一位客戶');
+            return;
+        }
+
+        setShowPreviewModal(true);
+    };
+
+    const handleConfirmSend = async () => {
+        setSending(true);
+        setResult(null);
+        setShowPreviewModal(false);
+
+        // Build recipients list
+        // Strategy: 
+        // 1. Identify which customers are from XLS import (for mapping)
+        // 2. Others use global manual values
+
+        const recipients = [];
+
+        selectedCustomers.forEach(cid => {
+            const recipient = { id: cid, variables: {} };
+
+            // Check if this customer is in import matched list
+            const imported = importData?.matched?.find(m => m.id === cid);
+
+            variables.forEach(v => {
+                const header = variableMapping[v];
+                if (header && imported && imported.row_data && imported.row_data[header]) {
+                    // Use XLS value
+                    recipient.variables[v] = imported.row_data[header];
+                } else {
+                    // Use Manual value (Global fallback)
+                    recipient.variables[v] = variableValues[v];
+                }
+            });
+
+            recipients.push(recipient);
+        });
 
         try {
             const res = await api.notifications.send({
                 template_id: selectedTemplate,
-                customer_ids: selectedCustomers,
-                variables: variableValues
+                recipients: recipients,
+                variables: variableValues // Fallback global checks
             });
             setResult({ success: res.success, message: res.message });
         } catch (e) {
@@ -92,7 +156,8 @@ const SendNotification = () => {
 
         setSending(false);
         if (result?.success) {
-            setSelectedCustomers([]);
+            // Optional: reset selection
+            // setSelectedCustomers([]);
         }
     };
 
@@ -101,11 +166,11 @@ const SendNotification = () => {
         if (!file) return;
 
         setUploading(true);
-        setImportResult(null);
+        setImportData(null);
 
         try {
             const res = await api.notifications.importPreview(file);
-            setImportResult(res);
+            setImportData(res);
 
             // Auto-select matched customers
             if (res.matched && res.matched.length > 0) {
@@ -129,7 +194,10 @@ const SendNotification = () => {
         }
     };
 
-    const getPreviewContent = () => {
+    const getPreviewContent = (previewLocal = true) => {
+        // previewLocal = true: uses manual values (for Main Page Preview)
+        // previewLocal = false: logic for Modal (showing specific user example)
+
         if (!selectedTemplate) return null;
         const tmpl = templates.find(t => t.id === parseInt(selectedTemplate));
         if (!tmpl) return null;
@@ -141,15 +209,31 @@ const SendNotification = () => {
 
         // 2. Highlight user variables
         variables.forEach(v => {
-            const val = variableValues[v];
+            let val = '';
+            const header = variableMapping[v];
+
+            if (previewLocal) {
+                // Main page: show manual value or headers
+                if (header) {
+                    val = `[欄位: ${header}]`;
+                } else {
+                    val = variableValues[v];
+                }
+            } else {
+                // Modal Preview: Pick the first selected customer
+                const firstCid = selectedCustomers[0];
+                const imported = importData?.matched?.find(m => m.id === firstCid);
+
+                if (header && imported && imported.row_data) {
+                    val = imported.row_data[header] || '(空)';
+                } else {
+                    val = variableValues[v] || '(空)';
+                }
+            }
+
             const display = val ? `<span class="var-filled">${val}</span>` : `<span class="var-empty">{{${v}}}</span>`;
-            // Safe replacement
             content = content.replace(new RegExp(`\\{\\{${v}\\}\\}`, 'g'), display);
         });
-
-        // Convert newlines to <br/> logic is handled by 'white-space: pre-wrap' in CSS usually, 
-        // but since we are using dangerouslySetInnerHTML, we need to be careful.
-        // Actually the container has white-space: pre-wrap, so raw text is fine unless we use HTML for coloring.
 
         return content;
     };
@@ -157,28 +241,60 @@ const SendNotification = () => {
     return (
         <div>
             <style>{`
-                .var-system {
-                    color: #10b981;
-                    font-weight: bold;
-                    background: rgba(16, 185, 129, 0.1);
-                    padding: 0 4px;
-                    border-radius: 4px;
+                .var-system { color: #10b981; font-weight: bold; background: rgba(16, 185, 129, 0.1); padding: 0 4px; border-radius: 4px; }
+                .var-empty { color: #ef4444; font-weight: bold; background: rgba(239, 68, 68, 0.1); padding: 0 4px; border-radius: 4px; }
+                .var-filled { color: #3b82f6; font-weight: bold; background: rgba(59, 130, 246, 0.1); padding: 0 4px; border-radius: 4px; }
+                .modal-overlay {
+                    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+                    background: rgba(0, 0, 0, 0.7);
+                    display: flex; justify-content: center; align-items: center;
+                    z-index: 1000;
+                    backdrop-filter: blur(5px);
                 }
-                .var-empty {
-                    color: #ef4444;
-                    font-weight: bold;
-                    background: rgba(239, 68, 68, 0.1);
-                    padding: 0 4px;
-                    border-radius: 4px;
-                }
-                .var-filled {
-                    color: #3b82f6;
-                    font-weight: bold;
-                    background: rgba(59, 130, 246, 0.1);
-                    padding: 0 4px;
-                    border-radius: 4px;
+                .modal-content {
+                    background: #1e1e2d; /* Assuming dark theme bg */
+                    padding: 2rem;
+                    border-radius: 12px;
+                    width: 90%; max-width: 600px;
+                    border: 1px solid var(--border-color);
+                    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
                 }
             `}</style>
+
+            {showPreviewModal && (
+                <div className="modal-overlay">
+                    <div className="modal-content">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                            <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>確認發送內容</h2>
+                            <button onClick={() => setShowPreviewModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                                <X size={24} />
+                            </button>
+                        </div>
+
+                        <div style={{ marginBottom: '1.5rem' }}>
+                            <p style={{ marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>您即將發送通知給 <strong>{selectedCustomers.length}</strong> 位客戶。</p>
+                            <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>以下是預覽 (以第一位選取者為例)：</p>
+                        </div>
+
+                        <div style={{
+                            padding: '1.5rem',
+                            backgroundColor: 'rgba(255,255,255,0.05)',
+                            borderRadius: '8px',
+                            marginBottom: '2rem',
+                            border: '1px solid var(--border-color)',
+                            whiteSpace: 'pre-wrap',
+                            lineHeight: '1.6'
+                        }} dangerouslySetInnerHTML={{ __html: getPreviewContent(false) }} />
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+                            <Button variant="secondary" onClick={() => setShowPreviewModal(false)}>取消</Button>
+                            <Button onClick={handleConfirmSend} disabled={sending}>
+                                {sending ? '發送中...' : <><Send size={18} /> 確認發送</>}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <div className="flex justify-between items-center" style={{ marginBottom: '2rem' }}>
                 <div>
@@ -221,22 +337,57 @@ const SendNotification = () => {
                                 <div style={{ display: 'grid', gap: '1rem' }}>
                                     {variables.map(v => (
                                         <div key={v}>
-                                            <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem' }}>{v}</label>
-                                            <input
-                                                type="text"
-                                                value={variableValues[v] || ''}
-                                                onChange={e => setVariableValues(prev => ({ ...prev, [v]: e.target.value }))}
-                                                placeholder={`請輸入 ${v} 的內容`}
-                                                style={{
-                                                    width: '100%',
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                                                <label style={{ fontSize: '0.85rem' }}>{v}</label>
+                                                {importData?.headers && (
+                                                    <select
+                                                        value={variableMapping[v] || ''}
+                                                        onChange={e => setVariableMapping(prev => ({ ...prev, [v]: e.target.value }))}
+                                                        style={{
+                                                            fontSize: '0.8rem',
+                                                            padding: '2px 6px',
+                                                            borderRadius: '4px',
+                                                            background: 'var(--bg-primary)',
+                                                            color: 'var(--text-secondary)',
+                                                            border: '1px solid var(--border-color)'
+                                                        }}
+                                                    >
+                                                        <option value="">手動輸入</option>
+                                                        {importData.headers.map(h => (
+                                                            <option key={h} value={h}>從 XLS: {h}</option>
+                                                        ))}
+                                                    </select>
+                                                )}
+                                            </div>
+
+                                            {(!variableMapping[v]) ? (
+                                                <input
+                                                    type="text"
+                                                    value={variableValues[v] || ''}
+                                                    onChange={e => setVariableValues(prev => ({ ...prev, [v]: e.target.value }))}
+                                                    placeholder={`請輸入 ${v} 的通用內容`}
+                                                    style={{
+                                                        width: '100%',
+                                                        padding: '10px',
+                                                        backgroundColor: 'var(--bg-primary)',
+                                                        border: '1px solid var(--border-color)',
+                                                        borderRadius: '6px',
+                                                        color: 'var(--text-primary)',
+                                                        outline: 'none'
+                                                    }}
+                                                />
+                                            ) : (
+                                                <div style={{
                                                     padding: '10px',
-                                                    backgroundColor: 'var(--bg-primary)',
-                                                    border: '1px solid var(--border-color)',
+                                                    background: 'rgba(59, 130, 246, 0.1)',
                                                     borderRadius: '6px',
-                                                    color: 'var(--text-primary)',
-                                                    outline: 'none'
-                                                }}
-                                            />
+                                                    fontSize: '0.85rem',
+                                                    color: 'var(--text-secondary)',
+                                                    border: '1px dashed var(--border-color)'
+                                                }}>
+                                                    將使用 XLS 欄位「{variableMapping[v]}」的值
+                                                </div>
+                                            )}
                                         </div>
                                     ))}
                                 </div>
@@ -245,10 +396,10 @@ const SendNotification = () => {
 
                         {selectedTemplate && (
                             <div style={{ padding: '1rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
-                                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>內容預覽 (系統變數已自動帶入測試資料)：</div>
+                                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>內容預覽 (顯示)：</div>
                                 <div
                                     style={{ whiteSpace: 'pre-wrap', lineHeight: '1.6' }}
-                                    dangerouslySetInnerHTML={{ __html: getPreviewContent() }}
+                                    dangerouslySetInnerHTML={{ __html: getPreviewContent(true) }}
                                 />
                             </div>
                         )}
@@ -285,7 +436,7 @@ const SendNotification = () => {
                             </div>
                         </div>
 
-                        {importResult && (
+                        {importData && (
                             <div style={{
                                 marginBottom: '1.5rem',
                                 padding: '1rem',
@@ -298,7 +449,7 @@ const SendNotification = () => {
                                         <Info size={14} /> 匯入結果
                                     </h4>
                                     <button
-                                        onClick={() => setImportResult(null)}
+                                        onClick={() => { setImportData(null); setSelectedCustomers([]); }}
                                         style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '1.2rem' }}
                                     >
                                         &times;
@@ -306,12 +457,15 @@ const SendNotification = () => {
                                 </div>
                                 <div style={{ fontSize: '0.85rem' }}>
                                     <div style={{ color: 'var(--success)', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        <CheckCircle size={14} /> 成功對應並自動勾選 {importResult.matched?.length || 0} 位客戶
+                                        <CheckCircle size={14} /> 成功對應並自動勾選 {importData.matched?.length || 0} 位客戶
                                     </div>
-                                    {importResult.not_found?.length > 0 && (
+                                    <div style={{ color: 'var(--text-secondary)', marginBottom: '6px', marginLeft: '20px' }}>
+                                        已偵測欄位: {importData.headers?.join(', ')}
+                                    </div>
+                                    {importData.not_found?.length > 0 && (
                                         <div style={{ color: 'var(--danger)', marginTop: '8px' }}>
                                             <div style={{ marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                <AlertCircle size={14} /> 找不到以下自定義名稱 (共 {importResult.not_found.length} 筆)：
+                                                <AlertCircle size={14} /> 找不到以下自定義名稱 (共 {importData.not_found.length} 筆)：
                                             </div>
                                             <div style={{
                                                 maxHeight: '100px',
@@ -323,7 +477,7 @@ const SendNotification = () => {
                                                 color: 'var(--text-secondary)',
                                                 lineHeight: '1.6'
                                             }}>
-                                                {importResult.not_found.join(', ')}
+                                                {importData.not_found.join(', ')}
                                             </div>
                                         </div>
                                     )}
@@ -407,7 +561,7 @@ const SendNotification = () => {
                         )}
 
                         <Button
-                            onClick={handleSend}
+                            onClick={handlePreSend}
                             disabled={!selectedTemplate || selectedCustomers.length === 0 || sending}
                             style={{
                                 width: '100%',
@@ -418,7 +572,7 @@ const SendNotification = () => {
                                 cursor: 'pointer'
                             }}
                         >
-                            {sending ? '發送中...' : <><Send size={20} /> 開始發送通知</>}
+                            {sending ? '發送中...' : <><Eye size={20} /> 預覽並發送</>}
                         </Button>
                     </Card>
                 </div>
