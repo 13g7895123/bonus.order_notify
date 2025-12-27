@@ -7,15 +7,19 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
+# Dependencies
+node_modules/
+vendor/
+
+# Build output
+dist/
+dist-ssr/
 *.local
 
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
-.idea
+.idea/
 .DS_Store
 *.suo
 *.ntvs*
@@ -23,4 +27,32 @@ dist-ssr
 *.sln
 *.sw?
 
-db_data/*
+# Environment files (contains secrets)
+.env
+.env.*
+!.env.example
+
+# Database data
+db_data/
+
+# Backend writable directory contents
+backend/writable/cache/*
+backend/writable/debugbar/*
+backend/writable/logs/*
+backend/writable/session/*
+backend/writable/uploads/*
+!backend/writable/**/index.html
+!backend/writable/**/.htaccess
+
+# PHP
+*.phar
+
+# OS files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
