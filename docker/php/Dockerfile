@@ -6,10 +6,14 @@ RUN apt-get update && apt-get install -y \
     libonig-dev \
     libcurl4-openssl-dev \
     libzip-dev \
+    libpng-dev \
+    libjpeg-dev \
+    libfreetype6-dev \
     zip \
     unzip \
     git \
-    && docker-php-ext-install intl mbstring pdo pdo_mysql mysqli curl zip \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install intl mbstring pdo pdo_mysql mysqli curl zip gd \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install Composer globally

@@ -27,6 +27,7 @@ $routes->group('api', ['namespace' => 'App\Controllers\Api'], function ($routes)
 
     // Notifications
     $routes->post('notifications/send', 'Notifications::send');
+    $routes->post('notifications/import-preview', 'Notifications::importPreview');
 
     // Settings
     $routes->get('settings', 'Settings::index');
