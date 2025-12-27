@@ -10,8 +10,8 @@ class InitialSeeder extends Seeder
     {
         // Default User
         $this->db->table('users')->insert([
+            'username' => 'admin',
             'name' => 'Admin User',
-            'email' => 'admin@example.com',
             'password' => password_hash('admin', PASSWORD_DEFAULT),
             'created_at' => date('Y-m-d H:i:s'),
         ]);

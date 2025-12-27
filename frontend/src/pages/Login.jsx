@@ -1,14 +1,13 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../services/api';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Card from '../components/ui/Card';
 import { Send } from 'lucide-react';
 
 const Login = () => {
-    const [email, setEmail] = useState('');
+    const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const { login } = useAuth();
@@ -16,7 +15,7 @@ const Login = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        const success = await login(email, password); // AuthContext now needs to use api
+        const success = await login(username, password);
         if (success) {
             navigate('/');
         } else {
@@ -53,13 +52,13 @@ const Login = () => {
 
                 <form onSubmit={handleSubmit}>
                     <Input
-                        label="Email"
-                        value={email}
-                        onChange={e => setEmail(e.target.value)}
-                        placeholder="admin@example.com"
+                        label="帳號"
+                        value={username}
+                        onChange={e => setUsername(e.target.value)}
+                        placeholder="admin"
                     />
                     <Input
-                        label="Password"
+                        label="密碼"
                         type="password"
                         value={password}
                         onChange={e => setPassword(e.target.value)}

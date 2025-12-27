@@ -3,26 +3,24 @@
 namespace App\Controllers\Api;
 
 use CodeIgniter\RESTful\ResourceController;
-use App\Models\UserModel;
 
 class Auth extends ResourceController
 {
-    protected $modelName = 'App\Models\UserModel';
-    protected $format    = 'json';
+    protected $format = 'json';
 
     public function login()
     {
         $db = \Config\Database::connect();
         $json = $this->request->getJSON();
 
-        if (!$json || !isset($json->email) || !isset($json->password)) {
-            return $this->failValidationError('Missing email or password');
+        if (!$json || !isset($json->username) || !isset($json->password)) {
+            return $this->failValidationErrors('請輸入帳號與密碼');
         }
 
-        $user = $db->table('users')->where('email', $json->email)->get()->getRowArray();
+        $user = $db->table('users')->where('username', $json->username)->get()->getRowArray();
 
         if (!$user || !password_verify($json->password, $user['password'])) {
-            return $this->failUnauthorized('Invalid credentials');
+            return $this->failUnauthorized('帳號或密碼錯誤');
         }
 
         // Generate simple token
@@ -37,8 +35,8 @@ class Auth extends ResourceController
             'token' => $token,
             'user' => [
                 'id' => $user['id'],
-                'name' => $user['name'],
-                'email' => $user['email']
+                'username' => $user['username'],
+                'name' => $user['name']
             ]
         ]);
     }
