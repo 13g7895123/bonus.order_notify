@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../services/api';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
-import { Send, CheckCircle, AlertCircle, Upload, Users, Info } from 'lucide-react';
+import { Send, CheckCircle, AlertCircle, Upload, Users, Info, Settings } from 'lucide-react';
 
 const SendNotification = () => {
     const [templates, setTemplates] = useState([]);
@@ -13,11 +13,52 @@ const SendNotification = () => {
     const [result, setResult] = useState(null);
     const [importResult, setImportResult] = useState(null);
     const [uploading, setUploading] = useState(false);
+
+    // Variable Support
+    const [variables, setVariables] = useState([]);
+    const [variableValues, setVariableValues] = useState({});
+
     const fileInputRef = useRef(null);
 
     useEffect(() => {
         loadData();
     }, []);
+
+    // Extract variables when template changes
+    useEffect(() => {
+        if (!selectedTemplate) {
+            setVariables([]);
+            setVariableValues({});
+            return;
+        }
+
+        const tmpl = templates.find(t => t.id === parseInt(selectedTemplate));
+        if (!tmpl) return;
+
+        // Regex to find {{variable}}
+        const regex = /\{\{(.*?)\}\}/g;
+        const found = [];
+        let match;
+        while ((match = regex.exec(tmpl.content)) !== null) {
+            const varName = match[1].trim();
+            // 'name' is a system reserved variable (customer name)
+            if (varName !== 'name' && !found.includes(varName)) {
+                found.push(varName);
+            }
+        }
+        setVariables(found);
+
+        // Reset values (or preserve if name matches? sticking to simple reset for clarity now)
+        // Ideally we keep value if key exists to avoid accidental clearing if switching back and forth
+        setVariableValues(prev => {
+            const next = {};
+            found.forEach(v => {
+                next[v] = prev[v] || '';
+            });
+            return next;
+        });
+
+    }, [selectedTemplate, templates]);
 
     const loadData = async () => {
         const t = await api.templates.list();
@@ -30,10 +71,19 @@ const SendNotification = () => {
         setSending(true);
         setResult(null);
 
+        // Validate variables
+        const missing = variables.filter(v => !variableValues[v]);
+        if (missing.length > 0) {
+            alert(`請填寫所有範本變數: ${missing.join(', ')}`);
+            setSending(false);
+            return;
+        }
+
         try {
             const res = await api.notifications.send({
                 template_id: selectedTemplate,
-                customer_ids: selectedCustomers
+                customer_ids: selectedCustomers,
+                variables: variableValues
             });
             setResult({ success: res.success, message: res.message });
         } catch (e) {
@@ -41,7 +91,9 @@ const SendNotification = () => {
         }
 
         setSending(false);
-        setSelectedCustomers([]);
+        if (result?.success) {
+            setSelectedCustomers([]);
+        }
     };
 
     const handleFileUpload = async (e) => {
@@ -77,14 +129,57 @@ const SendNotification = () => {
         }
     };
 
-    const getTemplateContent = () => {
-        if (!selectedTemplate) return '';
+    const getPreviewContent = () => {
+        if (!selectedTemplate) return null;
         const tmpl = templates.find(t => t.id === parseInt(selectedTemplate));
-        return tmpl ? tmpl.content : '';
+        if (!tmpl) return null;
+
+        let content = tmpl.content;
+
+        // 1. Highlight system variable
+        content = content.replace(/\{\{name\}\}/g, '<span class="var-system">王小明</span>');
+
+        // 2. Highlight user variables
+        variables.forEach(v => {
+            const val = variableValues[v];
+            const display = val ? `<span class="var-filled">${val}</span>` : `<span class="var-empty">{{${v}}}</span>`;
+            // Safe replacement
+            content = content.replace(new RegExp(`\\{\\{${v}\\}\\}`, 'g'), display);
+        });
+
+        // Convert newlines to <br/> logic is handled by 'white-space: pre-wrap' in CSS usually, 
+        // but since we are using dangerouslySetInnerHTML, we need to be careful.
+        // Actually the container has white-space: pre-wrap, so raw text is fine unless we use HTML for coloring.
+
+        return content;
     };
 
     return (
         <div>
+            <style>{`
+                .var-system {
+                    color: #10b981;
+                    font-weight: bold;
+                    background: rgba(16, 185, 129, 0.1);
+                    padding: 0 4px;
+                    border-radius: 4px;
+                }
+                .var-empty {
+                    color: #ef4444;
+                    font-weight: bold;
+                    background: rgba(239, 68, 68, 0.1);
+                    padding: 0 4px;
+                    border-radius: 4px;
+                }
+                .var-filled {
+                    color: #3b82f6;
+                    font-weight: bold;
+                    background: rgba(59, 130, 246, 0.1);
+                    padding: 0 4px;
+                    border-radius: 4px;
+                }
+            `}</style>
+
             <div className="flex justify-between items-center" style={{ marginBottom: '2rem' }}>
                 <div>
                     <h1 style={{ fontSize: '2rem', fontWeight: 'bold' }}>發送通知</h1>
@@ -94,36 +189,78 @@ const SendNotification = () => {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '2rem' }}>
                 <div>
-                    <Card title="1. 選擇範本">
-                        <select
-                            value={selectedTemplate}
-                            onChange={e => setSelectedTemplate(e.target.value)}
-                            style={{
-                                width: '100%',
-                                padding: '12px',
-                                backgroundColor: 'var(--bg-secondary)',
-                                border: '1px solid var(--border-color)',
-                                borderRadius: '8px',
-                                color: 'var(--text-primary)',
-                                outline: 'none',
-                                marginBottom: '1rem',
-                                cursor: 'pointer'
-                            }}
-                        >
-                            <option value="">-- 請選擇範本 --</option>
-                            {templates.map(t => (
-                                <option key={t.id} value={t.id}>{t.name}</option>
-                            ))}
-                        </select>
+                    <Card title="1. 設定內容">
+                        <div style={{ marginBottom: '1rem' }}>
+                            <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>選擇範本</label>
+                            <select
+                                value={selectedTemplate}
+                                onChange={e => setSelectedTemplate(e.target.value)}
+                                style={{
+                                    width: '100%',
+                                    padding: '12px',
+                                    backgroundColor: 'var(--bg-secondary)',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: '8px',
+                                    color: 'var(--text-primary)',
+                                    outline: 'none',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                <option value="">-- 請選擇範本 --</option>
+                                {templates.map(t => (
+                                    <option key={t.id} value={t.id}>{t.name}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {variables.length > 0 && (
+                            <div style={{ marginBottom: '1.5rem', padding: '1rem', border: '1px solid var(--border-color)', borderRadius: '8px', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                                <h4 style={{ fontSize: '0.9rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <Settings size={14} /> 填寫變數
+                                </h4>
+                                <div style={{ display: 'grid', gap: '1rem' }}>
+                                    {variables.map(v => (
+                                        <div key={v}>
+                                            <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem' }}>{v}</label>
+                                            <input
+                                                type="text"
+                                                value={variableValues[v] || ''}
+                                                onChange={e => setVariableValues(prev => ({ ...prev, [v]: e.target.value }))}
+                                                placeholder={`請輸入 ${v} 的內容`}
+                                                style={{
+                                                    width: '100%',
+                                                    padding: '10px',
+                                                    backgroundColor: 'var(--bg-primary)',
+                                                    border: '1px solid var(--border-color)',
+                                                    borderRadius: '6px',
+                                                    color: 'var(--text-primary)',
+                                                    outline: 'none'
+                                                }}
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
                         {selectedTemplate && (
-                            <div style={{ padding: '1rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '8px', whiteSpace: 'pre-wrap' }}>
-                                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>內容預覽：</div>
-                                {getTemplateContent()}
+                            <div style={{ padding: '1rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
+                                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>內容預覽 (系統變數已自動帶入測試資料)：</div>
+                                <div
+                                    style={{ whiteSpace: 'pre-wrap', lineHeight: '1.6' }}
+                                    dangerouslySetInnerHTML={{ __html: getPreviewContent() }}
+                                />
                             </div>
                         )}
                     </Card>
 
+                    {/* Customer Selection Card moved below or kept aside depending on layout preference. 
+                        Original layout was 2 columns. Left: Template. Right: Customers. 
+                        Let's keep the split but rename titles.
+                     */}
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
                     <Card title="2. 選擇客戶">
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                             <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
@@ -224,9 +361,7 @@ const SendNotification = () => {
                             )}
                         </div>
                     </Card>
-                </div>
 
-                <div>
                     <Card title="3. 確認並發送">
                         <div style={{ marginBottom: '1.5rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1rem' }}>
@@ -246,12 +381,12 @@ const SendNotification = () => {
                                 </div>
                                 <div>
                                     <div style={{ fontWeight: '600' }}>位收件者</div>
-                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>已選取</div>
+                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                                        {variables.length > 0 ? `使用 ${variables.length} 個自訂變數` : '無自訂變數'}
+                                    </div>
                                 </div>
                             </div>
-                            <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
-                                此操作將會透過 LINE Messaging API 將選定的範本發送給您所選取的收件者。請確認名稱與範本變數是否正確。
-                            </p>
+
                         </div>
 
                         {result && (

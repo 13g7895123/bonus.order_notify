@@ -41,8 +41,16 @@ class Notifications extends ResourceController
                 $displayName = $customer['custom_name'] ?: ($lineUser['display_name'] ?? 'Customer');
 
                 $content = $template['content'];
+
+                // 1. Replace System Variable {{name}}
                 $content = str_replace('{{name}}', $displayName, $content);
-                // ... more variable replacements can be added
+
+                // 2. Replace User Variables
+                if (isset($json->variables) && is_object($json->variables)) {
+                    foreach ($json->variables as $key => $value) {
+                        $content = str_replace('{{' . $key . '}}', $value, $content);
+                    }
+                }
 
                 // Call LINE Message API
                 $lineResult = $this->sendLineMessage($channelAccessToken['value'], $customer['line_uid'], $content);
