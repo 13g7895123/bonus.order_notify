@@ -1,4 +1,4 @@
-const API_URL = 'http://localhost:8081/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8081/api';
 
 const getHeaders = () => {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
