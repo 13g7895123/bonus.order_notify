@@ -137,6 +137,21 @@
   }
   ```
 
+### 5.2 Excel 匯入預覽
+- **POST** `/api/notifications/import-preview`
+- **Body**: `multipart/form-data` (file 欄位)
+- **Response**:
+  ```json
+  {
+    "matched": [
+      { "id": 1, "custom_name": "王小明", "line_uid": "U..." }
+    ],
+    "not_found": ["林宏仁"]
+  }
+  ```
+- **說明**: 讀取 XLS/XLSX 檔案內容（從 A2 開始），比對現有客戶的自定義名稱。
+
+
 ## 6. 訊息記錄 (Messages)
 
 ### 6.1 取得最近訊息
