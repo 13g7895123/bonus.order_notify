@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, FileText, Users, Send, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, Send, Settings, LogOut, MessageCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const Sidebar = () => {
@@ -10,6 +10,7 @@ const Sidebar = () => {
         { path: '/templates', icon: <FileText size={20} />, label: '通知範本' },
         { path: '/customers', icon: <Users size={20} />, label: '客戶名單' },
         { path: '/send', icon: <Send size={20} />, label: '發送通知' },
+        { path: '/line-users', icon: <MessageCircle size={20} />, label: 'LINE 使用者' },
         { path: '/settings', icon: <Settings size={20} />, label: '系統設定' },
     ];
 

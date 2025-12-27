@@ -35,4 +35,8 @@ $routes->group('api', ['namespace' => 'App\Controllers\Api'], function ($routes)
     // Messages
     $routes->get('messages', 'Messages::index');
     $routes->get('messages/history/(:num)', 'Messages::history/$1'); // customer_id
+
+    // LINE Webhook & Users
+    $routes->post('line/webhook', 'LineWebhook::receive');
+    $routes->get('line/users', 'LineWebhook::listUsers');
 });
