@@ -96,7 +96,8 @@ class MultiTenantSupport extends Migration
         if ($adminUser) {
             $db->table('users')->where('id', $adminUser['id'])->update([
                 'role' => 'admin',
-                'webhook_key' => bin2hex(random_bytes(32))
+                'webhook_key' => bin2hex(random_bytes(32)),
+                'is_active' => 1
             ]);
 
             // Assign all existing data to admin

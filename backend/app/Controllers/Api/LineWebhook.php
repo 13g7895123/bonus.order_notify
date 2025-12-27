@@ -26,15 +26,30 @@ class LineWebhook extends ResourceController
 
         if ($webhookKey) {
             // Multi-tenant mode: find user by webhook key
-            $user = $db->table('users')->where('webhook_key', $webhookKey)->where('is_active', 1)->get()->getRowArray();
+            // Check for active users (is_active = 1 or NULL for backward compatibility)
+            $user = $db->table('users')
+                ->where('webhook_key', $webhookKey)
+                ->groupStart()
+                ->where('is_active', 1)
+                ->orWhere('is_active IS NULL')
+                ->groupEnd()
+                ->get()->getRowArray();
+
             if (!$user) {
-                log_message('error', '[LINE Webhook] Invalid webhook key: ' . $webhookKey);
+                // Try without is_active check for debugging
+                $anyUser = $db->table('users')->where('webhook_key', $webhookKey)->get()->getRowArray();
+                if ($anyUser) {
+                    log_message('error', '[LINE Webhook] User found but is_active = ' . ($anyUser['is_active'] ?? 'NULL') . ' for key: ' . $webhookKey);
+                } else {
+                    log_message('error', '[LINE Webhook] No user found with webhook key: ' . $webhookKey);
+                }
                 return $this->failUnauthorized('Invalid webhook key');
             }
             log_message('info', '[LINE Webhook] User identified: ' . $user['username'] . ' (ID: ' . $user['id'] . ')');
             $channelSecret = $user['line_channel_secret'] ?? '';
         } else {
             // Legacy mode: use global settings (for backward compatibility)
+            log_message('info', '[LINE Webhook] No key parameter, using legacy mode');
             $channelSecretRow = $db->table('settings')->where('key', 'line_channel_secret')->get()->getRowArray();
             $channelSecret = $channelSecretRow['value'] ?? '';
             // Try to get admin user as fallback
