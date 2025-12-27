@@ -53,7 +53,7 @@ services:
     volumes:
       - ./backend:/var/www/html
     environment:
-      - CI_ENVIRONMENT=${CI_ENVIRONMENT:-production}
+      - CI_ENVIRONMENT=development
     depends_on:
       - db
     restart: unless-stopped

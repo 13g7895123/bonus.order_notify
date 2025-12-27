@@ -74,12 +74,17 @@ class Notifications extends ResourceController
 
     public function importPreview()
     {
+        log_message('debug', 'Notifications::importPreview started');
         $file = $this->request->getFile('file');
         if (!$file || !$file->isValid()) {
+            log_message('error', 'Import XLS: Invalid file. Error: ' . ($file ? $file->getErrorString() : 'No file'));
             return $this->failValidationErrors('請上傳有效的檔案');
         }
 
         try {
+            log_message('debug', 'Import XLS: Loading file ' . $file->getTempName() . ' (Original: ' . $file->getName() . ')');
+
+            // Explicitly set reader if possible to avoid detection issues with temp files
             $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($file->getTempName());
             $worksheet = $spreadsheet->getActiveSheet();
             $rows = $worksheet->toArray();
@@ -120,7 +125,8 @@ class Notifications extends ResourceController
                 'matched' => $matched,
                 'not_found' => array_values(array_unique($notFound))
             ]);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            log_message('error', 'Import XLS failed: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
             return $this->fail('讀取檔案出錯：' . $e->getMessage());
         }
     }
