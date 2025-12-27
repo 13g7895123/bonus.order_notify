@@ -68,5 +68,13 @@ export const api = {
     },
     stats: {
         get: async () => (await fetch(`${API_URL}/stats`, { headers: getHeaders() })).json()
+    },
+    users: {
+        list: async () => (await fetch(`${API_URL}/users`, { headers: getHeaders() })).json(),
+        me: async () => (await fetch(`${API_URL}/users/me`, { headers: getHeaders() })).json(),
+        create: async (data) => fetch(`${API_URL}/users`, { method: 'POST', headers: getHeaders(), body: JSON.stringify(data) }),
+        update: async (id, data) => fetch(`${API_URL}/users/${id}`, { method: 'PUT', headers: getHeaders(), body: JSON.stringify(data) }),
+        delete: async (id) => fetch(`${API_URL}/users/${id}`, { method: 'DELETE', headers: getHeaders() }),
+        regenerateWebhook: async (id) => (await fetch(`${API_URL}/users/${id}/regenerate-webhook`, { method: 'POST', headers: getHeaders() })).json()
     }
 };

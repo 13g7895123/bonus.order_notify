@@ -8,6 +8,7 @@ import SendNotification from './pages/SendNotification';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
 import LineUsers from './pages/LineUsers';
+import UserManagement from './pages/UserManagement';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 const ProtectedRoute = ({ children }) => {
@@ -35,6 +36,7 @@ function AppRoutes() {
       <Route path="/send" element={<ProtectedRoute><SendNotification /></ProtectedRoute>} />
       <Route path="/line-users" element={<ProtectedRoute><LineUsers /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+      <Route path="/users" element={<ProtectedRoute><UserManagement /></ProtectedRoute>} />
     </Routes>
   );
 }
@@ -50,3 +52,4 @@ function App() {
 }
 
 export default App;
+

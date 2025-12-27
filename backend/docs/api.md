@@ -20,10 +20,15 @@ Base URL: `/api`
     "user": {
       "id": 1,
       "username": "admin",
-      "name": "Admin User"
+      "name": "Admin User",
+      "role": "admin",
+      "webhook_key": "abc123..."
     }
   }
   ```
+- **說明**:
+  - `role`: 使用者角色 (admin/user)
+  - `webhook_key`: 該使用者的專屬 Webhook Key
 
 ### Logout
 - **Endpoint**: `POST /auth/logout`
@@ -249,3 +254,93 @@ Base URL: `/api`
   - `messages.quota`: 配額上限（從 settings 讀取，預設 200）
   - `messages.remaining`: 剩餘可發送數量
   - `messages.period`: 統計期間（當月）
+
+## Users (Admin Only)
+
+### List Users
+- **Endpoint**: `GET /users`
+- **Response**:
+  ```json
+  [
+    {
+      "id": 1,
+      "username": "admin",
+      "name": "Admin User",
+      "role": "admin",
+      "webhook_key": "abc123...",
+      "is_active": 1,
+      "has_line_config": true,
+      "message_quota": 200,
+      "stats": {
+        "customers": 50,
+        "templates": 5,
+        "messages_this_month": 85,
+        "line_users": 45,
+        "remaining_quota": 115
+      },
+      "created_at": "2024-01-01 10:00:00"
+    }
+  ]
+  ```
+
+### Get Current User
+- **Endpoint**: `GET /users/me`
+- **Response**: Single user object (same structure as above)
+
+### Create User
+- **Endpoint**: `POST /users`
+- **Body**:
+  ```json
+  {
+    "username": "newuser",
+    "password": "password123",
+    "name": "New User",
+    "role": "user",
+    "line_channel_secret": "...",
+    "line_channel_access_token": "...",
+    "message_quota": 200
+  }
+  ```
+- **說明**:
+  - `role`: admin or user
+  - System auto-generates `webhook_key`
+
+### Update User
+- **Endpoint**: `PUT /users/{id}`
+- **Body**:
+  ```json
+  {
+    "name": "Updated Name",
+    "role": "user",
+    "is_active": true,
+    "line_channel_secret": "...",
+    "line_channel_access_token": "...",
+    "message_quota": 500,
+    "password": "newpassword"
+  }
+  ```
+- **說明**: All fields optional
+
+### Delete User
+- **Endpoint**: `DELETE /users/{id}`
+- **說明**: Deletes user and all associated data (customers, templates, messages)
+
+### Regenerate Webhook Key
+- **Endpoint**: `POST /users/{id}/regenerate-webhook`
+- **Response**:
+  ```json
+  {
+    "id": 1,
+    "webhook_key": "new_webhook_key_here"
+  }
+  ```
+
+## Multi-Tenant Webhook
+
+### LINE Webhook (Multi-tenant)
+- **Endpoint**: `POST /line/webhook?key={webhook_key}`
+- **說明**:
+  - Each user has their own Webhook URL
+  - `key` parameter identifies the user
+  - Configure this URL in LINE Developers Console
+  - Example: `https://your-domain.com/api/line/webhook?key=abc123...`

@@ -23,6 +23,11 @@ class Auth extends ResourceController
             return $this->failUnauthorized('帳號或密碼錯誤');
         }
 
+        // Check if user is active
+        if (isset($user['is_active']) && !$user['is_active']) {
+            return $this->failUnauthorized('帳號已停用');
+        }
+
         // Generate simple token
         $token = bin2hex(random_bytes(32));
         $db->table('user_tokens')->insert([
@@ -36,7 +41,9 @@ class Auth extends ResourceController
             'user' => [
                 'id' => $user['id'],
                 'username' => $user['username'],
-                'name' => $user['name']
+                'name' => $user['name'],
+                'role' => $user['role'] ?? 'user',
+                'webhook_key' => $user['webhook_key'] ?? null
             ]
         ]);
     }

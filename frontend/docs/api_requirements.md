@@ -18,10 +18,15 @@
     "user": {
       "id": 1,
       "username": "admin",
-      "name": "Admin User"
+      "name": "Admin User",
+      "role": "admin",
+      "webhook_key": "abc123..."
     }
   }
   ```
+- **說明**:
+  - `role`: 使用者角色 (admin/user)
+  - `webhook_key`: 該使用者的專屬 Webhook Key
 
 ### 1.2 登出
 - **POST** `/api/auth/logout`
@@ -255,3 +260,93 @@
   - `messages.quota`: 配額上限（從 settings 讀取）
   - `messages.remaining`: 剩餘可發送數量
   - `messages.period`: 統計期間（當月）
+
+## 9. 使用者管理 (Users) - 管理員專用
+
+### 9.1 取得所有使用者
+- **GET** `/api/users`
+- **Response**:
+  ```json
+  [
+    {
+      "id": 1,
+      "username": "admin",
+      "name": "Admin User",
+      "role": "admin",
+      "webhook_key": "abc123...",
+      "is_active": 1,
+      "has_line_config": true,
+      "message_quota": 200,
+      "stats": {
+        "customers": 50,
+        "templates": 5,
+        "messages_this_month": 85,
+        "line_users": 45,
+        "remaining_quota": 115
+      },
+      "created_at": "2024-01-01 10:00:00"
+    }
+  ]
+  ```
+
+### 9.2 取得當前使用者資訊
+- **GET** `/api/users/me`
+- **Response**: 同上（單一使用者物件）
+
+### 9.3 新增使用者
+- **POST** `/api/users`
+- **Request**:
+  ```json
+  {
+    "username": "newuser",
+    "password": "password123",
+    "name": "新使用者",
+    "role": "user",
+    "line_channel_secret": "...",
+    "line_channel_access_token": "...",
+    "message_quota": 200
+  }
+  ```
+- **說明**:
+  - `role`: admin 或 user
+  - 系統會自動生成 `webhook_key`
+
+### 9.4 更新使用者
+- **PUT** `/api/users/{id}`
+- **Request**:
+  ```json
+  {
+    "name": "更新的名稱",
+    "role": "user",
+    "is_active": true,
+    "line_channel_secret": "...",
+    "line_channel_access_token": "...",
+    "message_quota": 500,
+    "password": "newpassword"
+  }
+  ```
+- **說明**: 所有欄位皆為選填，未提供則不更新
+
+### 9.5 刪除使用者
+- **DELETE** `/api/users/{id}`
+- **說明**: 會同時刪除該使用者的所有客戶、範本、訊息記錄
+
+### 9.6 重新產生 Webhook Key
+- **POST** `/api/users/{id}/regenerate-webhook`
+- **Response**:
+  ```json
+  {
+    "id": 1,
+    "webhook_key": "new_webhook_key_here"
+  }
+  ```
+
+## 10. 多租戶 Webhook
+
+### 10.1 LINE Webhook (多租戶)
+- **POST** `/api/line/webhook?key={webhook_key}`
+- **說明**:
+  - 每位使用者有專屬的 Webhook URL
+  - `key` 參數用於識別使用者
+  - LINE Developers Console 設定 Webhook URL 時需包含 key 參數
+  - 範例: `https://your-domain.com/api/line/webhook?key=abc123...`

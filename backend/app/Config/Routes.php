@@ -44,4 +44,12 @@ $routes->group('api', ['namespace' => 'App\Controllers\Api'], function ($routes)
 
     // Dashboard Stats
     $routes->get('stats', 'Stats::index');
+
+    // User Management (Admin)
+    $routes->get('users', 'Users::index');
+    $routes->get('users/me', 'Users::me');
+    $routes->post('users', 'Users::create');
+    $routes->put('users/(:num)', 'Users::update/$1');
+    $routes->delete('users/(:num)', 'Users::delete/$1');
+    $routes->post('users/(:num)/regenerate-webhook', 'Users::regenerateWebhook/$1');
 });

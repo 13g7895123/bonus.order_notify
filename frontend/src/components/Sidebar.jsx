@@ -1,10 +1,10 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, FileText, Users, Send, Settings, LogOut, MessageCircle } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, Send, Settings, LogOut, MessageCircle, Shield } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const Sidebar = () => {
-    const { logout } = useAuth();
+    const { logout, user } = useAuth();
     const navItems = [
         { path: '/', icon: <LayoutDashboard size={20} />, label: '儀表板' },
         { path: '/templates', icon: <FileText size={20} />, label: '通知範本' },
@@ -12,6 +12,7 @@ const Sidebar = () => {
         { path: '/send', icon: <Send size={20} />, label: '發送通知' },
         { path: '/line-users', icon: <MessageCircle size={20} />, label: 'LINE 使用者' },
         { path: '/settings', icon: <Settings size={20} />, label: '系統設定' },
+        ...(user?.role === 'admin' ? [{ path: '/users', icon: <Shield size={20} />, label: '使用者管理' }] : []),
     ];
 
     return (
