@@ -13,7 +13,7 @@ class Messages extends ResourceController
         // Recent messages
         $db = \Config\Database::connect();
         $msgs = $db->table('messages')
-            ->select('messages.*, customers.name as customer_name')
+            ->select('messages.*, customers.custom_name as customer_name')
             ->join('customers', 'customers.id = messages.customer_id', 'left')
             ->orderBy('created_at', 'DESC')
             ->limit(50)
@@ -23,7 +23,7 @@ class Messages extends ResourceController
 
     public function history($customerId = null)
     {
-        if (!$customerId) return $this->failValidationError('Customer ID required');
+        if (!$customerId) return $this->failValidationErrors('Customer ID required');
 
         $db = \Config\Database::connect();
         $msgs = $db->table('messages')

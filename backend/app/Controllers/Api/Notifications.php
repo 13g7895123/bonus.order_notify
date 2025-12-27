@@ -58,7 +58,7 @@ class Notifications extends ResourceController
                 if ($lineResult['success']) {
                     $sentCount++;
                 } else {
-                    $errors[] = "Failed to send to {$customer['name']}: {$lineResult['error']}";
+                    $errors[] = "Failed to send to {$customer['custom_name']}: {$lineResult['error']}";
                 }
             }
         }
