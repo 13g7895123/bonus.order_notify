@@ -214,7 +214,7 @@ class UserApplications extends ResourceController
     }
 
     /**
-     * Invite/create multiple users (for logged-in users)
+     * Create users (for logged-in users)
      */
     public function inviteUsers()
     {
@@ -237,9 +237,11 @@ class UserApplications extends ResourceController
             $username = $userData->username ?? null;
             $password = $userData->password ?? null;
             $name = $userData->name ?? null;
+            $lineChannelSecret = $userData->line_channel_secret ?? null;
+            $lineChannelAccessToken = $userData->line_channel_access_token ?? null;
 
             if (!$username || !$password || !$name) {
-                $errors[] = "第 " . ($index + 1) . " 筆：username, password, name 皆為必填";
+                $errors[] = "第 " . ($index + 1) . " 筆：帳號、密碼、顯示名稱 皆為必填";
                 continue;
             }
 
@@ -252,7 +254,7 @@ class UserApplications extends ResourceController
 
             // Create user
             $webhookKey = bin2hex(random_bytes(32));
-            $db->table('users')->insert([
+            $userData = [
                 'username' => $username,
                 'password' => password_hash($password, PASSWORD_DEFAULT),
                 'name' => $name,
@@ -261,7 +263,17 @@ class UserApplications extends ResourceController
                 'message_quota' => 200,
                 'is_active' => 1,
                 'created_at' => date('Y-m-d H:i:s')
-            ]);
+            ];
+
+            // Add LINE settings if provided
+            if (!empty($lineChannelSecret)) {
+                $userData['line_channel_secret'] = $lineChannelSecret;
+            }
+            if (!empty($lineChannelAccessToken)) {
+                $userData['line_channel_access_token'] = $lineChannelAccessToken;
+            }
+
+            $db->table('users')->insert($userData);
             $userId = $db->insertID();
 
             // Create default template
