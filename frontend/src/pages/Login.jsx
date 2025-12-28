@@ -74,6 +74,12 @@ const Login = () => {
                     <Button style={{ width: '100%', justifyContent: 'center' }} type="submit">
                         登入
                     </Button>
+
+                    <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+                        <a href="/register" style={{ color: 'var(--accent-primary)', textDecoration: 'none' }}>
+                            還沒有帳號？申請帳號
+                        </a>
+                    </div>
                 </form>
             </Card>
         </div>

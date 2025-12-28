@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, FileText, Users, Send, Settings, LogOut, MessageCircle, Shield, Activity } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, Send, Settings, LogOut, MessageCircle, Shield, Activity, UserPlus } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const Sidebar = () => {
@@ -14,6 +14,7 @@ const Sidebar = () => {
         { path: '/settings', icon: <Settings size={20} />, label: '個人設定' },
         ...(user?.role === 'admin' ? [
             { path: '/users', icon: <Shield size={20} />, label: '使用者管理' },
+            { path: '/applications', icon: <UserPlus size={20} />, label: '帳號申請' },
             { path: '/activity-logs', icon: <Activity size={20} />, label: '操作紀錄' }
         ] : []),
     ];

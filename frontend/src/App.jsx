@@ -7,8 +7,10 @@ import Customers from './pages/Customers';
 import SendNotification from './pages/SendNotification';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
+import Register from './pages/Register';
 import LineUsers from './pages/LineUsers';
 import UserManagement from './pages/UserManagement';
+import UserApplications from './pages/UserApplications';
 import ActivityLogs from './pages/ActivityLogs';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
@@ -30,6 +32,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+      <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
 
       <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/templates" element={<ProtectedRoute><Templates /></ProtectedRoute>} />
@@ -38,6 +41,7 @@ function AppRoutes() {
       <Route path="/line-users" element={<ProtectedRoute><LineUsers /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
       <Route path="/users" element={<ProtectedRoute><UserManagement /></ProtectedRoute>} />
+      <Route path="/applications" element={<ProtectedRoute><UserApplications /></ProtectedRoute>} />
       <Route path="/activity-logs" element={<ProtectedRoute><ActivityLogs /></ProtectedRoute>} />
     </Routes>
   );
@@ -54,4 +58,3 @@ function App() {
 }
 
 export default App;
-

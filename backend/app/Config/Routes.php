@@ -58,4 +58,11 @@ $routes->group('api', ['namespace' => 'App\Controllers\Api'], function ($routes)
     $routes->get('activity-logs', 'ActivityLogs::index');
     $routes->get('activity-logs/stats', 'ActivityLogs::stats');
     $routes->delete('activity-logs', 'ActivityLogs::clear');
+
+    // User Applications
+    $routes->post('applications/apply', 'UserApplications::apply'); // Public - no auth
+    $routes->get('applications', 'UserApplications::index'); // Admin only
+    $routes->get('applications/pending-count', 'UserApplications::pendingCount'); // Admin only
+    $routes->post('applications/(:num)/approve', 'UserApplications::approve/$1'); // Admin only
+    $routes->post('applications/(:num)/reject', 'UserApplications::reject/$1'); // Admin only
 });

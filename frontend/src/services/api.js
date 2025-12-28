@@ -85,5 +85,21 @@ export const api = {
         },
         stats: async () => (await fetch(`${API_URL}/activity-logs/stats`, { headers: getHeaders() })).json(),
         clear: async (days = 30) => fetch(`${API_URL}/activity-logs?days=${days}`, { method: 'DELETE', headers: getHeaders() })
+    },
+    applications: {
+        // Public - no auth required
+        apply: async (data) => {
+            const res = await fetch(`${API_URL}/applications/apply`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            return res.json();
+        },
+        // Admin only
+        list: async (status = '') => (await fetch(`${API_URL}/applications${status ? '?status=' + status : ''}`, { headers: getHeaders() })).json(),
+        pendingCount: async () => (await fetch(`${API_URL}/applications/pending-count`, { headers: getHeaders() })).json(),
+        approve: async (id) => (await fetch(`${API_URL}/applications/${id}/approve`, { method: 'POST', headers: getHeaders() })).json(),
+        reject: async (id, reason = '') => (await fetch(`${API_URL}/applications/${id}/reject`, { method: 'POST', headers: getHeaders(), body: JSON.stringify({ reason }) })).json()
     }
 };
