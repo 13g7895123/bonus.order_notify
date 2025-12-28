@@ -17,9 +17,12 @@ const Settings = () => {
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [inviteCode, setInviteCode] = useState('');
+    const [editQuota, setEditQuota] = useState('');
+    const [isEditingQuota, setIsEditingQuota] = useState(false);
     const [saved, setSaved] = useState(false);
     const [passwordSaved, setPasswordSaved] = useState(false);
     const [nameSaved, setNameSaved] = useState(false);
+    const [quotaSaved, setQuotaSaved] = useState(false);
     const [inviteCodeSaved, setInviteCodeSaved] = useState(false);
     const [error, setError] = useState('');
     const [copied, setCopied] = useState(false);
@@ -36,6 +39,7 @@ const Settings = () => {
             const data = await api.users.me();
             setProfile(data);
             setEditName(data.name || '');
+            setEditQuota(data.message_quota || 200);
         } catch (e) {
             console.error('Failed to load profile', e);
         }
@@ -215,9 +219,46 @@ const Settings = () => {
                         </div>
                         <div>
                             <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>每月配額</label>
-                            <div style={{ padding: '12px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '8px', color: 'var(--text-primary)' }}>
-                                {profile.message_quota} 則
-                            </div>
+                            {isEditingQuota ? (
+                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                    <Input
+                                        type="number"
+                                        value={editQuota}
+                                        onChange={(e) => setEditQuota(parseInt(e.target.value) || 0)}
+                                        style={{ marginBottom: 0, flex: 1 }}
+                                        min="0"
+                                    />
+                                    <Button onClick={async () => {
+                                        setError('');
+                                        try {
+                                            const res = await api.users.updateProfile({ message_quota: editQuota });
+                                            if (res.ok) {
+                                                setQuotaSaved(true);
+                                                setTimeout(() => setQuotaSaved(false), 2000);
+                                                setIsEditingQuota(false);
+                                                loadProfile();
+                                            }
+                                        } catch (e) {
+                                            setError('儲存失敗');
+                                        }
+                                    }} variant="success">
+                                        <Save size={16} />
+                                    </Button>
+                                    <Button onClick={() => { setIsEditingQuota(false); setEditQuota(profile.message_quota); }} variant="secondary">
+                                        取消
+                                    </Button>
+                                </div>
+                            ) : (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <div style={{ padding: '12px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '8px', color: 'var(--text-primary)', flex: 1 }}>
+                                        {profile.message_quota} 則
+                                    </div>
+                                    <Button onClick={() => setIsEditingQuota(true)} variant="secondary">
+                                        <Edit2 size={16} />
+                                    </Button>
+                                </div>
+                            )}
+                            {quotaSaved && <span style={{ color: 'var(--success)', fontSize: '0.85rem' }}>已儲存！</span>}
                         </div>
                     </div>
                 </Card>

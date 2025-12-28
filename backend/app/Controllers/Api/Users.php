@@ -291,6 +291,11 @@ class Users extends ResourceController
             $data['line_channel_access_token'] = $json->line_channel_access_token;
         }
 
+        // Allow updating message quota
+        if (isset($json->message_quota)) {
+            $data['message_quota'] = max(0, (int)$json->message_quota);
+        }
+
         $db->table('users')->where('id', $currentUser['id'])->update($data);
 
         return $this->respond(['success' => true, 'message' => '個人資料已更新']);
