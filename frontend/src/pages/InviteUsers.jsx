@@ -20,7 +20,7 @@ const CreateUsers = () => {
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState(null);
 
-    // 管理員預設隱藏此頁面的提示
+    // 管理員導向使用者管理頁面
     if (user?.role === 'admin') {
         return (
             <div>
@@ -35,6 +35,24 @@ const CreateUsers = () => {
                     <Button onClick={() => window.location.href = '/users'}>
                         前往使用者管理
                     </Button>
+                </Card>
+            </div>
+        );
+    }
+
+    // 沒有權限的使用者
+    if (!user?.can_create_users) {
+        return (
+            <div>
+                <div style={{ marginBottom: '2rem' }}>
+                    <h1 style={{ fontSize: '2rem', fontWeight: 'bold' }}>建立使用者</h1>
+                    <p style={{ color: 'var(--text-secondary)' }}>建立新的使用者帳號。</p>
+                </div>
+                <Card style={{ padding: '2rem', textAlign: 'center' }}>
+                    <p style={{ color: 'var(--text-secondary)' }}>
+                        您尚未取得建立使用者的權限。<br />
+                        請聯繫管理員開通此功能。
+                    </p>
                 </Card>
             </div>
         );

@@ -43,7 +43,8 @@ class Auth extends ResourceController
                 'username' => $user['username'],
                 'name' => $user['name'],
                 'role' => $user['role'] ?? 'user',
-                'webhook_key' => $user['webhook_key'] ?? null
+                'webhook_key' => $user['webhook_key'] ?? null,
+                'can_create_users' => (bool)($user['can_create_users'] ?? false)
             ]
         ]);
     }

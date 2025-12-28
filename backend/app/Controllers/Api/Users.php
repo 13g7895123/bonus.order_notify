@@ -40,7 +40,7 @@ class Users extends ResourceController
         $db = \Config\Database::connect();
 
         $users = $db->table('users')
-            ->select('users.id, users.username, users.name, users.role, users.webhook_key, users.is_active, users.line_channel_secret, users.message_quota, users.created_at')
+            ->select('users.id, users.username, users.name, users.role, users.webhook_key, users.is_active, users.can_create_users, users.line_channel_secret, users.message_quota, users.created_at')
             ->get()->getResultArray();
 
         // Add statistics for each user
@@ -146,6 +146,7 @@ class Users extends ResourceController
         if (isset($json->name)) $data['name'] = $json->name;
         if (isset($json->role)) $data['role'] = $json->role;
         if (isset($json->is_active)) $data['is_active'] = $json->is_active ? 1 : 0;
+        if (isset($json->can_create_users)) $data['can_create_users'] = $json->can_create_users ? 1 : 0;
         if (isset($json->line_channel_secret)) $data['line_channel_secret'] = $json->line_channel_secret;
         if (isset($json->line_channel_access_token)) $data['line_channel_access_token'] = $json->line_channel_access_token;
         if (isset($json->message_quota)) $data['message_quota'] = (int)$json->message_quota;
@@ -246,6 +247,7 @@ class Users extends ResourceController
             'webhook_key' => $currentUser['webhook_key'],
             'has_line_config' => !empty($currentUser['line_channel_secret']),
             'message_quota' => $currentUser['message_quota'] ?? 200,
+            'can_create_users' => (bool)($currentUser['can_create_users'] ?? false),
             'stats' => $stats
         ]);
     }

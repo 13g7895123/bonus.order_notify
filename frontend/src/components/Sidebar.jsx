@@ -11,8 +11,8 @@ const Sidebar = () => {
         { path: '/customers', icon: <Users size={20} />, label: '客戶名單' },
         { path: '/send', icon: <Send size={20} />, label: '發送通知' },
         { path: '/line-users', icon: <MessageCircle size={20} />, label: 'LINE 使用者' },
-        // 建立使用者：只給一般使用者看
-        ...(user?.role !== 'admin' ? [
+        // 建立使用者：只給有權限的一般使用者看（管理員需開通）
+        ...(user?.can_create_users && user?.role !== 'admin' ? [
             { path: '/invite', icon: <UserPlus size={20} />, label: '建立使用者' }
         ] : []),
         { path: '/settings', icon: <Settings size={20} />, label: '個人設定' },

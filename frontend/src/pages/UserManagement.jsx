@@ -18,7 +18,8 @@ const UserManagement = () => {
         line_channel_secret: '',
         line_channel_access_token: '',
         message_quota: 200,
-        is_active: true
+        is_active: true,
+        can_create_users: false
     });
     const [copiedKey, setCopiedKey] = useState(null);
     const [saved, setSaved] = useState(false);
@@ -48,7 +49,8 @@ const UserManagement = () => {
             line_channel_secret: '', // Don't show secret
             line_channel_access_token: '', // Don't show token
             message_quota: user.message_quota || 200,
-            is_active: user.is_active == 1
+            is_active: user.is_active == 1,
+            can_create_users: user.can_create_users == 1
         });
         setIsEditing(true);
     };
@@ -75,7 +77,8 @@ const UserManagement = () => {
             name: currentUser.name,
             role: currentUser.role,
             message_quota: currentUser.message_quota,
-            is_active: currentUser.is_active
+            is_active: currentUser.is_active,
+            can_create_users: currentUser.can_create_users
         };
 
         if (currentUser.password) {
@@ -111,7 +114,8 @@ const UserManagement = () => {
             line_channel_secret: '',
             line_channel_access_token: '',
             message_quota: 200,
-            is_active: true
+            is_active: true,
+            can_create_users: false
         });
     };
 
@@ -211,6 +215,15 @@ const UserManagement = () => {
                             />
                             <label htmlFor="is_active" style={{ cursor: 'pointer' }}>啟用帳號</label>
                         </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', paddingTop: '1.5rem' }}>
+                            <input
+                                type="checkbox"
+                                id="can_create_users"
+                                checked={currentUser.can_create_users}
+                                onChange={e => setCurrentUser({ ...currentUser, can_create_users: e.target.checked })}
+                            />
+                            <label htmlFor="can_create_users" style={{ cursor: 'pointer' }}>允許建立使用者</label>
+                        </div>
                     </div>
 
                     <div style={{ marginTop: '1.5rem', padding: '1rem', backgroundColor: 'rgba(59, 130, 246, 0.1)', borderRadius: '8px' }}>
@@ -280,6 +293,17 @@ const UserManagement = () => {
                                                     color: 'var(--text-secondary)'
                                                 }}>
                                                     已停用
+                                                </span>
+                                            )}
+                                            {user.can_create_users == 1 && user.role !== 'admin' && (
+                                                <span style={{
+                                                    fontSize: '0.75rem',
+                                                    padding: '2px 8px',
+                                                    borderRadius: '4px',
+                                                    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                                                    color: 'var(--success)'
+                                                }}>
+                                                    可建立帳號
                                                 </span>
                                             )}
                                         </div>
