@@ -1,8 +1,9 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8081/api';
+// Use relative path - Nginx proxy will forward /api to backend
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 // Common fetch options with credentials for cookies
 const fetchOptions = {
-    credentials: 'include'
+    credentials: 'include' // include cookies in requests
 };
 
 const getHeaders = () => ({

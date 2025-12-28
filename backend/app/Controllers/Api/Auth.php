@@ -167,39 +167,42 @@ class Auth extends ResourceController
 
     private function setAuthCookies(string $accessToken, string $refreshToken): void
     {
-        $secure = ENVIRONMENT === 'production';
-        $domain = '';
+        // In development, ports differ but same host - use Lax
+        // For cross-origin (different domains), would need SameSite=None with Secure=true
+        $isProduction = ENVIRONMENT === 'production';
+        $sameSite = 'Lax';
+        $secure = $isProduction;
 
         // Access token cookie
         setcookie('access_token', $accessToken, [
             'expires' => time() + self::ACCESS_TOKEN_EXPIRY,
             'path' => '/',
-            'domain' => $domain,
+            'domain' => '',
             'secure' => $secure,
             'httponly' => true,
-            'samesite' => 'Lax'
+            'samesite' => $sameSite
         ]);
 
         // Refresh token cookie
         setcookie('refresh_token', $refreshToken, [
             'expires' => time() + self::REFRESH_TOKEN_EXPIRY,
             'path' => '/',
-            'domain' => $domain,
+            'domain' => '',
             'secure' => $secure,
             'httponly' => true,
-            'samesite' => 'Lax'
+            'samesite' => $sameSite
         ]);
     }
 
     private function setAccessTokenCookie(string $accessToken): void
     {
-        $secure = ENVIRONMENT === 'production';
+        $isProduction = ENVIRONMENT === 'production';
 
         setcookie('access_token', $accessToken, [
             'expires' => time() + self::ACCESS_TOKEN_EXPIRY,
             'path' => '/',
             'domain' => '',
-            'secure' => $secure,
+            'secure' => $isProduction,
             'httponly' => true,
             'samesite' => 'Lax'
         ]);
@@ -207,22 +210,16 @@ class Auth extends ResourceController
 
     private function clearAuthCookies(): void
     {
-        setcookie('access_token', '', [
+        $cookieOptions = [
             'expires' => time() - 3600,
             'path' => '/',
             'domain' => '',
             'secure' => false,
             'httponly' => true,
             'samesite' => 'Lax'
-        ]);
+        ];
 
-        setcookie('refresh_token', '', [
-            'expires' => time() - 3600,
-            'path' => '/',
-            'domain' => '',
-            'secure' => false,
-            'httponly' => true,
-            'samesite' => 'Lax'
-        ]);
+        setcookie('access_token', '', $cookieOptions);
+        setcookie('refresh_token', '', $cookieOptions);
     }
 }

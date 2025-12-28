@@ -10,12 +10,26 @@ trait AuthTrait
     protected function getCurrentUser(): ?array
     {
         $db = \Config\Database::connect();
+        $token = null;
 
         // First try to get token from HttpOnly cookie
-        $token = $_COOKIE['access_token'] ?? null;
+        // Use multiple methods to ensure we can read the cookie
+        if (isset($_COOKIE['access_token']) && !empty($_COOKIE['access_token'])) {
+            $token = $_COOKIE['access_token'];
+        }
+
+        // Try CodeIgniter's cookie helper
+        if (!$token && function_exists('get_cookie')) {
+            $token = get_cookie('access_token');
+        }
+
+        // Try from request if available
+        if (!$token && isset($this->request)) {
+            $token = $this->request->getCookie('access_token');
+        }
 
         // Fallback to Authorization header (for API compatibility)
-        if (!$token) {
+        if (!$token && isset($this->request)) {
             $authHeader = $this->request->getHeaderLine('Authorization');
             if (preg_match('/Bearer\s+(.*)$/i', $authHeader, $matches)) {
                 $token = $matches[1];

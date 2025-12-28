@@ -2,8 +2,8 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Accept build arguments
-ARG VITE_API_URL=http://localhost:8081/api
+# Accept build arguments - use relative path for same-origin (via nginx proxy)
+ARG VITE_API_URL=/api
 
 # Set environment variable for build
 ENV VITE_API_URL=$VITE_API_URL
