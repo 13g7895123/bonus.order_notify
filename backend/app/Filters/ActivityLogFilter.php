@@ -47,9 +47,22 @@ class ActivityLogFilter implements FilterInterface
         $username = null;
 
         // First try: check for Bearer token (regular API calls)
-        $authHeader = $request->getHeaderLine('Authorization');
-        if (preg_match('/Bearer\s+(.*)$/i', $authHeader, $matches)) {
-            $token = $matches[1];
+        $token = null;
+
+        // 1. Try cookie
+        if (isset($_COOKIE['access_token'])) {
+            $token = $_COOKIE['access_token'];
+        }
+
+        // 2. Try header if no cookie
+        if (!$token) {
+            $authHeader = $request->getHeaderLine('Authorization');
+            if (preg_match('/Bearer\s+(.*)$/i', $authHeader, $matches)) {
+                $token = $matches[1];
+            }
+        }
+
+        if ($token) {
             $db = \Config\Database::connect();
             $userToken = $db->table('user_tokens')->where('token', $token)->get()->getRowArray();
             if ($userToken) {
