@@ -13,6 +13,8 @@ $routes->group('api', ['namespace' => 'App\Controllers\Api'], function ($routes)
     // Auth
     $routes->post('auth/login', 'Auth::login');
     $routes->post('auth/logout', 'Auth::logout');
+    $routes->post('auth/refresh', 'Auth::refresh');
+    $routes->get('auth/me', 'Auth::me');
 
     // Templates
     $routes->get('templates', 'Templates::index');
