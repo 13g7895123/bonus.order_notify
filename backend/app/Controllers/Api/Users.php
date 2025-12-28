@@ -3,29 +3,13 @@
 namespace App\Controllers\Api;
 
 use CodeIgniter\RESTful\ResourceController;
+use App\Traits\AuthTrait;
 
 class Users extends ResourceController
 {
-    protected $format = 'json';
+    use AuthTrait;
 
-    /**
-     * Get current user info from token
-     */
-    private function getCurrentUser()
-    {
-        // For now, get from session or decode token
-        // This is simplified - in production, use proper JWT validation
-        $authHeader = $this->request->getHeaderLine('Authorization');
-        if (preg_match('/Bearer\s+(.*)$/i', $authHeader, $matches)) {
-            $token = $matches[1];
-            $db = \Config\Database::connect();
-            $userToken = $db->table('user_tokens')->where('token', $token)->get()->getRowArray();
-            if ($userToken) {
-                return $db->table('users')->where('id', $userToken['user_id'])->get()->getRowArray();
-            }
-        }
-        return null;
-    }
+    protected $format = 'json';
 
     /**
      * List all users (admin only)
