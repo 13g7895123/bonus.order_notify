@@ -15,6 +15,7 @@ $routes->group('api', ['namespace' => 'App\Controllers\Api'], function ($routes)
     $routes->post('auth/logout', 'Auth::logout');
     $routes->post('auth/refresh', 'Auth::refresh');
     $routes->get('auth/me', 'Auth::me');
+    $routes->get('auth/debug', 'Auth::debug');
 
     // Templates
     $routes->get('templates', 'Templates::index');

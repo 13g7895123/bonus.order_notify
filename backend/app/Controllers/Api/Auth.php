@@ -165,6 +165,38 @@ class Auth extends ResourceController
         ]);
     }
 
+    /**
+     * Debug endpoint to check cookie/token status
+     */
+    public function debug()
+    {
+        $db = \Config\Database::connect();
+
+        // Check all ways to read cookie
+        $cookieFromGlobal = $_COOKIE['access_token'] ?? 'NOT_FOUND';
+        $cookieFromRequest = $this->request->getCookie('access_token') ?? 'NOT_FOUND';
+        $authHeader = $this->request->getHeaderLine('Authorization');
+
+        // Check if token exists in database
+        $tokenInDb = null;
+        if ($cookieFromGlobal !== 'NOT_FOUND') {
+            $tokenInDb = $db->table('user_tokens')->where('token', $cookieFromGlobal)->get()->getRowArray();
+        }
+
+        // All cookies received
+        $allCookies = $_COOKIE;
+
+        return $this->respond([
+            'cookie_from_global' => substr($cookieFromGlobal, 0, 20) . '...',
+            'cookie_from_request' => substr($cookieFromRequest, 0, 20) . '...',
+            'auth_header' => $authHeader ? 'Present' : 'Not present',
+            'token_found_in_db' => $tokenInDb ? true : false,
+            'all_cookies_keys' => array_keys($allCookies),
+            'http_cookie_header' => $_SERVER['HTTP_COOKIE'] ?? 'NOT_SET',
+            'current_user' => $this->getCurrentUser() ? 'Found' : 'Not found'
+        ]);
+    }
+
     private function setAuthCookies(string $accessToken, string $refreshToken): void
     {
         // In development, ports differ but same host - use Lax
