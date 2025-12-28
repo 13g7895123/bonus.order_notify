@@ -108,16 +108,25 @@ class LineWebhook extends ResourceController
 
                 if (!$existing) {
                     log_message('info', "[LINE Webhook] Creating new user: " . $userId);
-                    $db->table('line_users')->insert([
-                        'user_id' => $ownerId,
-                        'line_uid' => $userId,
-                        'display_name' => $profile['displayName'] ?? '',
-                        'picture_url' => $profile['pictureUrl'] ?? '',
-                        'status_message' => $profile['statusMessage'] ?? '',
-                        'email' => $profile['email'] ?? null,
-                        'event_type' => $eventType,
-                        'created_at' => date('Y-m-d H:i:s')
-                    ]);
+                    try {
+                        $result = $db->table('line_users')->insert([
+                            'user_id' => $ownerId,
+                            'line_uid' => $userId,
+                            'display_name' => $profile['displayName'] ?? '',
+                            'picture_url' => $profile['pictureUrl'] ?? '',
+                            'status_message' => $profile['statusMessage'] ?? '',
+                            'email' => $profile['email'] ?? null,
+                            'event_type' => $eventType,
+                            'created_at' => date('Y-m-d H:i:s')
+                        ]);
+                        if ($result) {
+                            log_message('info', "[LINE Webhook] Insert successful, ID: " . $db->insertID());
+                        } else {
+                            log_message('error', "[LINE Webhook] Insert failed, DB error: " . json_encode($db->error()));
+                        }
+                    } catch (\Exception $e) {
+                        log_message('error', "[LINE Webhook] Insert exception: " . $e->getMessage());
+                    }
                 } else {
                     log_message('info', "[LINE Webhook] Updating existing user: " . $userId);
                     $db->table('line_users')->where('id', $existing['id'])->update([
