@@ -87,7 +87,7 @@ export const api = {
         clear: async (days = 30) => fetch(`${API_URL}/activity-logs?days=${days}`, { method: 'DELETE', headers: getHeaders() })
     },
     applications: {
-        // Public - no auth required
+        // Public - no auth required (with invite code)
         apply: async (data) => {
             const res = await fetch(`${API_URL}/applications/apply`, {
                 method: 'POST',
@@ -96,10 +96,14 @@ export const api = {
             });
             return res.json();
         },
+        // Logged-in users can invite
+        inviteUsers: async (users) => (await fetch(`${API_URL}/applications/invite`, { method: 'POST', headers: getHeaders(), body: JSON.stringify({ users }) })).json(),
         // Admin only
         list: async (status = '') => (await fetch(`${API_URL}/applications${status ? '?status=' + status : ''}`, { headers: getHeaders() })).json(),
         pendingCount: async () => (await fetch(`${API_URL}/applications/pending-count`, { headers: getHeaders() })).json(),
         approve: async (id) => (await fetch(`${API_URL}/applications/${id}/approve`, { method: 'POST', headers: getHeaders() })).json(),
-        reject: async (id, reason = '') => (await fetch(`${API_URL}/applications/${id}/reject`, { method: 'POST', headers: getHeaders(), body: JSON.stringify({ reason }) })).json()
+        reject: async (id, reason = '') => (await fetch(`${API_URL}/applications/${id}/reject`, { method: 'POST', headers: getHeaders(), body: JSON.stringify({ reason }) })).json(),
+        getInviteCode: async () => (await fetch(`${API_URL}/applications/invite-code`, { headers: getHeaders() })).json(),
+        updateInviteCode: async (code) => (await fetch(`${API_URL}/applications/invite-code`, { method: 'PUT', headers: getHeaders(), body: JSON.stringify({ invite_code: code }) })).json()
     }
 };

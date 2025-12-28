@@ -60,9 +60,12 @@ $routes->group('api', ['namespace' => 'App\Controllers\Api'], function ($routes)
     $routes->delete('activity-logs', 'ActivityLogs::clear');
 
     // User Applications
-    $routes->post('applications/apply', 'UserApplications::apply'); // Public - no auth
+    $routes->post('applications/apply', 'UserApplications::apply'); // Public - no auth (with invite code)
+    $routes->post('applications/invite', 'UserApplications::inviteUsers'); // Logged-in users
     $routes->get('applications', 'UserApplications::index'); // Admin only
     $routes->get('applications/pending-count', 'UserApplications::pendingCount'); // Admin only
     $routes->post('applications/(:num)/approve', 'UserApplications::approve/$1'); // Admin only
     $routes->post('applications/(:num)/reject', 'UserApplications::reject/$1'); // Admin only
+    $routes->get('applications/invite-code', 'UserApplications::getInviteCode'); // Admin only
+    $routes->put('applications/invite-code', 'UserApplications::updateInviteCode'); // Admin only
 });

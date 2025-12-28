@@ -12,7 +12,8 @@ class UserApplications extends ResourceController
     protected $format = 'json';
 
     /**
-     * Submit a new application (public - no auth required)
+     * Register with invite code (public - no auth required)
+     * Creates user directly if invite code is valid
      */
     public function apply()
     {
@@ -22,7 +23,19 @@ class UserApplications extends ResourceController
             return $this->failValidationErrors('username, password 和 name 為必填');
         }
 
+        if (!isset($json->invite_code) || empty($json->invite_code)) {
+            return $this->failValidationErrors('邀請碼為必填');
+        }
+
         $db = \Config\Database::connect();
+
+        // Validate invite code
+        $inviteCodeSetting = $db->table('settings')->where('key', 'invite_code')->get()->getRowArray();
+        $validCode = $inviteCodeSetting['value'] ?? '';
+
+        if (empty($validCode) || $json->invite_code !== $validCode) {
+            return $this->failValidationErrors('邀請碼錯誤');
+        }
 
         // Check if username already exists in users table
         $existingUser = $db->table('users')->where('username', $json->username)->get()->getRowArray();
@@ -30,29 +43,32 @@ class UserApplications extends ResourceController
             return $this->failValidationErrors('使用者名稱已被使用');
         }
 
-        // Check if there's a pending application with same username
-        $existingApp = $db->table('user_applications')
-            ->where('username', $json->username)
-            ->where('status', 'pending')
-            ->get()->getRowArray();
-        if ($existingApp) {
-            return $this->failValidationErrors('此使用者名稱已有待審核的申請');
-        }
-
-        // Create application
-        $db->table('user_applications')->insert([
+        // Create user directly (no pending approval needed with valid invite code)
+        $webhookKey = bin2hex(random_bytes(32));
+        $db->table('users')->insert([
             'username' => $json->username,
             'password' => password_hash($json->password, PASSWORD_DEFAULT),
             'name' => $json->name,
-            'email' => $json->email ?? null,
-            'reason' => $json->reason ?? null,
-            'status' => 'pending',
+            'role' => 'user',
+            'webhook_key' => $webhookKey,
+            'message_quota' => 200,
+            'is_active' => 1,
+            'created_at' => date('Y-m-d H:i:s')
+        ]);
+        $userId = $db->insertID();
+
+        // Create default template for the new user
+        $db->table('templates')->insert([
+            'user_id' => $userId,
+            'name' => '出貨通知',
+            'content' => '親愛的 {{name}}，您的訂單已經出貨。',
+            'variables' => null,
             'created_at' => date('Y-m-d H:i:s')
         ]);
 
         return $this->respondCreated([
             'success' => true,
-            'message' => '申請已送出，請等待管理員審核'
+            'message' => '註冊成功！請使用您的帳號登入'
         ]);
     }
 
@@ -194,6 +210,136 @@ class UserApplications extends ResourceController
         return $this->respond([
             'success' => true,
             'message' => '已拒絕申請'
+        ]);
+    }
+
+    /**
+     * Invite/create multiple users (for logged-in users)
+     */
+    public function inviteUsers()
+    {
+        $currentUser = $this->getCurrentUser();
+        if (!$currentUser) {
+            return $this->failUnauthorized();
+        }
+
+        $json = $this->request->getJSON();
+
+        if (!$json || !isset($json->users) || !is_array($json->users)) {
+            return $this->failValidationErrors('請提供使用者資料陣列');
+        }
+
+        $db = \Config\Database::connect();
+        $created = [];
+        $errors = [];
+
+        foreach ($json->users as $index => $userData) {
+            $username = $userData->username ?? null;
+            $password = $userData->password ?? null;
+            $name = $userData->name ?? null;
+
+            if (!$username || !$password || !$name) {
+                $errors[] = "第 " . ($index + 1) . " 筆：username, password, name 皆為必填";
+                continue;
+            }
+
+            // Check if username exists
+            $existing = $db->table('users')->where('username', $username)->get()->getRowArray();
+            if ($existing) {
+                $errors[] = "第 " . ($index + 1) . " 筆：使用者名稱 '{$username}' 已被使用";
+                continue;
+            }
+
+            // Create user
+            $webhookKey = bin2hex(random_bytes(32));
+            $db->table('users')->insert([
+                'username' => $username,
+                'password' => password_hash($password, PASSWORD_DEFAULT),
+                'name' => $name,
+                'role' => 'user',
+                'webhook_key' => $webhookKey,
+                'message_quota' => 200,
+                'is_active' => 1,
+                'created_at' => date('Y-m-d H:i:s')
+            ]);
+            $userId = $db->insertID();
+
+            // Create default template
+            $db->table('templates')->insert([
+                'user_id' => $userId,
+                'name' => '出貨通知',
+                'content' => '親愛的 {{name}}，您的訂單已經出貨。',
+                'variables' => null,
+                'created_at' => date('Y-m-d H:i:s')
+            ]);
+
+            $created[] = [
+                'id' => $userId,
+                'username' => $username,
+                'name' => $name
+            ];
+        }
+
+        return $this->respond([
+            'success' => count($errors) === 0,
+            'created' => $created,
+            'errors' => $errors,
+            'message' => '成功建立 ' . count($created) . ' 個帳號' . (count($errors) > 0 ? '，' . count($errors) . ' 個失敗' : '')
+        ]);
+    }
+
+    /**
+     * Get invite code (admin only)
+     */
+    public function getInviteCode()
+    {
+        $currentUser = $this->getCurrentUser();
+        if (!$currentUser || $currentUser['role'] !== 'admin') {
+            return $this->failForbidden('只有管理員可以存取');
+        }
+
+        $db = \Config\Database::connect();
+        $setting = $db->table('settings')->where('key', 'invite_code')->get()->getRowArray();
+
+        return $this->respond([
+            'invite_code' => $setting['value'] ?? ''
+        ]);
+    }
+
+    /**
+     * Update invite code (admin only)
+     */
+    public function updateInviteCode()
+    {
+        $currentUser = $this->getCurrentUser();
+        if (!$currentUser || $currentUser['role'] !== 'admin') {
+            return $this->failForbidden('只有管理員可以存取');
+        }
+
+        $json = $this->request->getJSON();
+        if (!$json || !isset($json->invite_code)) {
+            return $this->failValidationErrors('請提供邀請碼');
+        }
+
+        $db = \Config\Database::connect();
+        $existing = $db->table('settings')->where('key', 'invite_code')->get()->getRowArray();
+
+        if ($existing) {
+            $db->table('settings')->where('key', 'invite_code')->update([
+                'value' => $json->invite_code,
+                'updated_at' => date('Y-m-d H:i:s')
+            ]);
+        } else {
+            $db->table('settings')->insert([
+                'key' => 'invite_code',
+                'value' => $json->invite_code,
+                'created_at' => date('Y-m-d H:i:s')
+            ]);
+        }
+
+        return $this->respond([
+            'success' => true,
+            'message' => '邀請碼已更新'
         ]);
     }
 }

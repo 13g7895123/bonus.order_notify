@@ -3,32 +3,68 @@ import { api } from '../services/api';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
-import { Save, MessageSquare, Key, User, Copy, Check, ExternalLink } from 'lucide-react';
+import { Save, MessageSquare, Key, User, Copy, Check, ExternalLink, Edit2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const Settings = () => {
     const { user } = useAuth();
     const [profile, setProfile] = useState(null);
+    const [editName, setEditName] = useState('');
+    const [isEditingName, setIsEditingName] = useState(false);
     const [channelSecret, setChannelSecret] = useState('');
     const [channelAccessToken, setChannelAccessToken] = useState('');
     const [currentPassword, setCurrentPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    const [inviteCode, setInviteCode] = useState('');
     const [saved, setSaved] = useState(false);
     const [passwordSaved, setPasswordSaved] = useState(false);
+    const [nameSaved, setNameSaved] = useState(false);
+    const [inviteCodeSaved, setInviteCodeSaved] = useState(false);
     const [error, setError] = useState('');
     const [copied, setCopied] = useState(false);
 
     useEffect(() => {
         loadProfile();
-    }, []);
+        if (user?.role === 'admin') {
+            loadInviteCode();
+        }
+    }, [user]);
 
     const loadProfile = async () => {
         try {
             const data = await api.users.me();
             setProfile(data);
+            setEditName(data.name || '');
         } catch (e) {
             console.error('Failed to load profile', e);
+        }
+    };
+
+    const loadInviteCode = async () => {
+        try {
+            const data = await api.applications.getInviteCode();
+            setInviteCode(data.invite_code || '');
+        } catch (e) {
+            console.error('Failed to load invite code', e);
+        }
+    };
+
+    const handleSaveName = async () => {
+        setError('');
+        try {
+            const res = await api.users.updateProfile({ name: editName });
+            if (res.ok) {
+                setNameSaved(true);
+                setTimeout(() => setNameSaved(false), 2000);
+                setIsEditingName(false);
+                loadProfile();
+            } else {
+                const result = await res.json();
+                setError(result.messages?.error || '儲存失敗');
+            }
+        } catch (e) {
+            setError('儲存失敗');
         }
     };
 
@@ -61,8 +97,8 @@ const Settings = () => {
             setError('新密碼與確認密碼不一致');
             return;
         }
-        if (newPassword.length < 6) {
-            setError('新密碼至少需要 6 個字元');
+        if (newPassword.length < 4) {
+            setError('新密碼至少需要 4 個字元');
             return;
         }
 
@@ -83,6 +119,21 @@ const Settings = () => {
             }
         } catch (e) {
             setError('密碼更新失敗');
+        }
+    };
+
+    const handleSaveInviteCode = async () => {
+        setError('');
+        try {
+            const result = await api.applications.updateInviteCode(inviteCode);
+            if (result.success) {
+                setInviteCodeSaved(true);
+                setTimeout(() => setInviteCodeSaved(false), 2000);
+            } else {
+                setError(result.message || '儲存失敗');
+            }
+        } catch (e) {
+            setError('儲存失敗');
         }
     };
 
@@ -130,9 +181,31 @@ const Settings = () => {
                         </div>
                         <div>
                             <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>顯示名稱</label>
-                            <div style={{ padding: '12px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '8px', color: 'var(--text-primary)' }}>
-                                {profile.name}
-                            </div>
+                            {isEditingName ? (
+                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                    <Input
+                                        value={editName}
+                                        onChange={(e) => setEditName(e.target.value)}
+                                        style={{ marginBottom: 0, flex: 1 }}
+                                    />
+                                    <Button onClick={handleSaveName} variant="success">
+                                        <Save size={16} />
+                                    </Button>
+                                    <Button onClick={() => { setIsEditingName(false); setEditName(profile.name); }} variant="secondary">
+                                        取消
+                                    </Button>
+                                </div>
+                            ) : (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <div style={{ padding: '12px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '8px', color: 'var(--text-primary)', flex: 1 }}>
+                                        {profile.name}
+                                    </div>
+                                    <Button onClick={() => setIsEditingName(true)} variant="secondary">
+                                        <Edit2 size={16} />
+                                    </Button>
+                                </div>
+                            )}
+                            {nameSaved && <span style={{ color: 'var(--success)', fontSize: '0.85rem' }}>已儲存！</span>}
                         </div>
                         <div>
                             <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>角色</label>
@@ -148,6 +221,30 @@ const Settings = () => {
                         </div>
                     </div>
                 </Card>
+
+                {/* Invite Code (Admin Only) */}
+                {user?.role === 'admin' && (
+                    <Card title="邀請碼設定">
+                        <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+                            新使用者需要輸入此邀請碼才能註冊帳號。
+                        </p>
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
+                            <div style={{ flex: 1 }}>
+                                <Input
+                                    label="邀請碼"
+                                    value={inviteCode}
+                                    onChange={(e) => setInviteCode(e.target.value)}
+                                    placeholder="請輸入邀請碼"
+                                    style={{ marginBottom: 0 }}
+                                />
+                            </div>
+                            <Button onClick={handleSaveInviteCode}>
+                                <Save size={18} /> 儲存
+                            </Button>
+                        </div>
+                        {inviteCodeSaved && <span style={{ color: 'var(--success)', fontSize: '0.85rem', marginTop: '0.5rem', display: 'block' }}>邀請碼已更新！</span>}
+                    </Card>
+                )}
 
                 {/* Webhook URL */}
                 <Card title="您的 Webhook URL">
@@ -220,7 +317,7 @@ const Settings = () => {
                         type="password"
                         value={newPassword}
                         onChange={e => setNewPassword(e.target.value)}
-                        placeholder="請輸入新密碼（至少 6 個字元）"
+                        placeholder="請輸入新密碼（至少 4 個字元）"
                     />
                     <Input
                         label="確認新密碼"
@@ -242,4 +339,3 @@ const Settings = () => {
 };
 
 export default Settings;
-

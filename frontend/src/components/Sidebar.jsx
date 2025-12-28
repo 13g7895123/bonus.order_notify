@@ -11,10 +11,10 @@ const Sidebar = () => {
         { path: '/customers', icon: <Users size={20} />, label: '客戶名單' },
         { path: '/send', icon: <Send size={20} />, label: '發送通知' },
         { path: '/line-users', icon: <MessageCircle size={20} />, label: 'LINE 使用者' },
+        { path: '/invite', icon: <UserPlus size={20} />, label: '邀請使用者' },
         { path: '/settings', icon: <Settings size={20} />, label: '個人設定' },
         ...(user?.role === 'admin' ? [
             { path: '/users', icon: <Shield size={20} />, label: '使用者管理' },
-            { path: '/applications', icon: <UserPlus size={20} />, label: '帳號申請' },
             { path: '/activity-logs', icon: <Activity size={20} />, label: '操作紀錄' }
         ] : []),
     ];

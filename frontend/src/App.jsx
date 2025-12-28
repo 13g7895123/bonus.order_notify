@@ -11,6 +11,7 @@ import Register from './pages/Register';
 import LineUsers from './pages/LineUsers';
 import UserManagement from './pages/UserManagement';
 import UserApplications from './pages/UserApplications';
+import InviteUsers from './pages/InviteUsers';
 import ActivityLogs from './pages/ActivityLogs';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
@@ -40,6 +41,7 @@ function AppRoutes() {
       <Route path="/send" element={<ProtectedRoute><SendNotification /></ProtectedRoute>} />
       <Route path="/line-users" element={<ProtectedRoute><LineUsers /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+      <Route path="/invite" element={<ProtectedRoute><InviteUsers /></ProtectedRoute>} />
       <Route path="/users" element={<ProtectedRoute><UserManagement /></ProtectedRoute>} />
       <Route path="/applications" element={<ProtectedRoute><UserApplications /></ProtectedRoute>} />
       <Route path="/activity-logs" element={<ProtectedRoute><ActivityLogs /></ProtectedRoute>} />

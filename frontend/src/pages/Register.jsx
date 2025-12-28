@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -7,13 +7,13 @@ import Input from '../components/ui/Input';
 import { Send, UserPlus, ArrowLeft, CheckCircle } from 'lucide-react';
 
 const Register = () => {
+    const navigate = useNavigate();
     const [formData, setFormData] = useState({
         username: '',
         password: '',
         confirmPassword: '',
         name: '',
-        email: '',
-        reason: ''
+        invite_code: ''
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -24,8 +24,8 @@ const Register = () => {
         setError('');
 
         // Validation
-        if (!formData.username || !formData.password || !formData.name) {
-            setError('請填寫使用者名稱、密碼和顯示名稱');
+        if (!formData.username || !formData.password || !formData.name || !formData.invite_code) {
+            setError('所有欄位皆為必填');
             return;
         }
 
@@ -34,8 +34,8 @@ const Register = () => {
             return;
         }
 
-        if (formData.password.length < 6) {
-            setError('密碼長度至少 6 個字元');
+        if (formData.password.length < 4) {
+            setError('密碼長度至少 4 個字元');
             return;
         }
 
@@ -45,17 +45,16 @@ const Register = () => {
                 username: formData.username,
                 password: formData.password,
                 name: formData.name,
-                email: formData.email || null,
-                reason: formData.reason || null
+                invite_code: formData.invite_code
             });
 
             if (result.success) {
                 setSuccess(true);
             } else {
-                setError(result.messages?.error || result.message || '申請失敗');
+                setError(result.messages?.error || result.message || '註冊失敗');
             }
         } catch (err) {
-            setError('申請失敗，請稍後再試');
+            setError('註冊失敗，請稍後再試');
         }
         setLoading(false);
     };
@@ -72,16 +71,13 @@ const Register = () => {
             }}>
                 <Card style={{ maxWidth: '400px', width: '100%', padding: '2rem', textAlign: 'center' }}>
                     <CheckCircle size={64} color="var(--success)" style={{ marginBottom: '1rem' }} />
-                    <h2 style={{ marginBottom: '1rem', color: 'var(--success)' }}>申請已送出！</h2>
+                    <h2 style={{ marginBottom: '1rem', color: 'var(--success)' }}>註冊成功！</h2>
                     <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
-                        您的帳號申請已成功送出，請等待管理員審核。<br />
-                        審核通過後即可使用帳號登入。
+                        您的帳號已建立完成，現在可以登入使用了。
                     </p>
-                    <Link to="/login">
-                        <Button style={{ width: '100%' }}>
-                            <ArrowLeft size={18} /> 返回登入頁面
-                        </Button>
-                    </Link>
+                    <Button onClick={() => navigate('/login')} style={{ width: '100%' }}>
+                        <ArrowLeft size={18} /> 前往登入
+                    </Button>
                 </Card>
             </div>
         );
@@ -96,42 +92,41 @@ const Register = () => {
             backgroundColor: 'var(--bg-primary)',
             padding: '1rem'
         }}>
-            <Card style={{ maxWidth: '450px', width: '100%', padding: '2rem' }}>
+            <Card style={{ maxWidth: '420px', width: '100%', padding: '2rem' }}>
                 <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
                         <Send size={32} color="var(--accent-primary)" />
                         <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--accent-primary)' }}>NotifyHub</span>
                     </div>
-                    <h2 style={{ margin: 0 }}>申請帳號</h2>
-                    <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>填寫以下資料申請使用帳號</p>
+                    <h2 style={{ margin: 0 }}>註冊帳號</h2>
+                    <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>請填寫以下資料完成註冊</p>
                 </div>
 
                 <form onSubmit={handleSubmit}>
                     <Input
+                        label="邀請碼 *"
+                        value={formData.invite_code}
+                        onChange={(e) => setFormData({ ...formData, invite_code: e.target.value })}
+                        placeholder="請輸入邀請碼"
+                    />
+                    <Input
                         label="使用者名稱 *"
                         value={formData.username}
                         onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                        placeholder="請輸入使用者名稱"
+                        placeholder="請輸入帳號"
                     />
                     <Input
                         label="顯示名稱 *"
                         value={formData.name}
                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        placeholder="請輸入顯示名稱"
-                    />
-                    <Input
-                        label="Email"
-                        type="email"
-                        value={formData.email}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        placeholder="選填"
+                        placeholder="請輸入您的名稱"
                     />
                     <Input
                         label="密碼 *"
                         type="password"
                         value={formData.password}
                         onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                        placeholder="至少 6 個字元"
+                        placeholder="至少 4 個字元"
                     />
                     <Input
                         label="確認密碼 *"
@@ -140,27 +135,6 @@ const Register = () => {
                         onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                         placeholder="再次輸入密碼"
                     />
-                    <div style={{ marginBottom: '1rem' }}>
-                        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                            申請原因
-                        </label>
-                        <textarea
-                            value={formData.reason}
-                            onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
-                            placeholder="請簡述您申請帳號的用途（選填）"
-                            style={{
-                                width: '100%',
-                                padding: '10px 12px',
-                                borderRadius: '6px',
-                                border: '1px solid var(--border-color)',
-                                backgroundColor: 'var(--bg-tertiary)',
-                                color: 'var(--text-primary)',
-                                fontSize: '1rem',
-                                minHeight: '80px',
-                                resize: 'vertical'
-                            }}
-                        />
-                    </div>
 
                     {error && (
                         <div style={{
@@ -178,7 +152,7 @@ const Register = () => {
 
                     <Button type="submit" disabled={loading} style={{ width: '100%', marginBottom: '1rem' }}>
                         <UserPlus size={18} />
-                        {loading ? '送出中...' : '送出申請'}
+                        {loading ? '註冊中...' : '註冊'}
                     </Button>
 
                     <div style={{ textAlign: 'center' }}>
