@@ -95,12 +95,22 @@ const Sidebar = () => {
                             <div style={{
                                 fontSize: '0.75rem',
                                 color: 'var(--text-secondary)',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis'
+                            }}>
+                                @{user.username}
+                            </div>
+                            <div style={{
+                                fontSize: '0.7rem',
+                                color: 'var(--text-secondary)',
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: '4px'
+                                gap: '4px',
+                                marginTop: '2px'
                             }}>
                                 {user.role === 'admin' ? (
-                                    <><Shield size={12} /> 管理員</>
+                                    <><Shield size={10} /> 管理員</>
                                 ) : (
                                     '一般使用者'
                                 )}
