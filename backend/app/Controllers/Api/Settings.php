@@ -3,13 +3,21 @@
 namespace App\Controllers\Api;
 
 use CodeIgniter\RESTful\ResourceController;
+use App\Traits\AuthTrait;
 
 class Settings extends ResourceController
 {
+    use AuthTrait;
+
     protected $format = 'json';
 
     public function index()
     {
+        $currentUser = $this->getCurrentUser();
+        if (!$currentUser) {
+            return $this->failUnauthorized();
+        }
+
         $db = \Config\Database::connect();
         $settings = $db->table('settings')->get()->getResultArray();
 
@@ -23,9 +31,18 @@ class Settings extends ResourceController
 
     public function update($id = null)
     {
-        // $id is ignored as this is a singular resource endpoint actually
+        $currentUser = $this->getCurrentUser();
+        if (!$currentUser) {
+            return $this->failUnauthorized();
+        }
+
+        // Ideally only admin should update settings, checking role
+        if (($currentUser['role'] ?? '') !== 'admin') {
+            return $this->failForbidden('Only admin can update settings');
+        }
+
         $json = $this->request->getJSON(true); // as array
-        if (!$json) return $this->failValidationError('Invalid data');
+        if (!$json) return $this->failValidationErrors('Invalid data');
 
         $db = \Config\Database::connect();
 

@@ -3,9 +3,12 @@
 namespace App\Controllers\Api;
 
 use CodeIgniter\RESTful\ResourceController;
+use App\Traits\AuthTrait;
 
 class LineWebhook extends ResourceController
 {
+    use AuthTrait;
+
     protected $format = 'json';
 
     /**
@@ -206,21 +209,14 @@ class LineWebhook extends ResourceController
      */
     public function listUsers()
     {
-        // Get current user for filtering
-        $authHeader = $this->request->getHeaderLine('Authorization');
-        $userId = null;
-        if (preg_match('/Bearer\s+(.*)$/i', $authHeader, $matches)) {
-            $token = $matches[1];
-            $db = \Config\Database::connect();
-            $userToken = $db->table('user_tokens')->where('token', $token)->get()->getRowArray();
-            if ($userToken) {
-                $userId = $userToken['user_id'];
-            }
-        }
+        // Use AuthTrait to get current user (supports both cookie and header)
+        $currentUser = $this->getCurrentUser();
 
-        if (!$userId) {
+        if (!$currentUser) {
             return $this->failUnauthorized();
         }
+
+        $userId = $currentUser['id'];
 
         $db = \Config\Database::connect();
         $users = $db->table('line_users')
