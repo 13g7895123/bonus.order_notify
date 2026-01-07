@@ -116,42 +116,85 @@ class Notifications extends ResourceController
     public function importPreview()
     {
         $userId = $this->getCurrentUserId();
+
+        log_message('info', '[Import XLS] ========== Import Preview Started ==========');
+        log_message('info', '[Import XLS] User ID: ' . ($userId ?? 'NULL'));
+
         if (!$userId) {
+            log_message('error', '[Import XLS] FAILED: Unauthorized - No valid user ID');
             return $this->failUnauthorized();
         }
 
-        log_message('debug', 'Notifications::importPreview started');
+        // Log request info
+        log_message('debug', '[Import XLS] Request Method: ' . $this->request->getMethod());
+        log_message('debug', '[Import XLS] Content-Type: ' . $this->request->getHeaderLine('Content-Type'));
+
         $file = $this->request->getFile('file');
-        if (!$file || !$file->isValid()) {
+
+        // Detailed file validation logging
+        if (!$file) {
+            log_message('error', '[Import XLS] FAILED: No file in request. Available files: ' . json_encode(array_keys($this->request->getFiles() ?? [])));
             return $this->failValidationErrors('請上傳有效的檔案');
         }
 
+        log_message('info', '[Import XLS] File received: ' . json_encode([
+            'name' => $file->getName(),
+            'originalName' => $file->getClientName(),
+            'size' => $file->getSize(),
+            'mimeType' => $file->getMimeType(),
+            'extension' => $file->getExtension(),
+            'tempPath' => $file->getTempName(),
+            'isValid' => $file->isValid(),
+            'error' => $file->getError(),
+            'errorString' => $file->getErrorString()
+        ], JSON_UNESCAPED_UNICODE));
+
+        if (!$file->isValid()) {
+            log_message('error', '[Import XLS] FAILED: File validation failed - Error: ' . $file->getErrorString() . ' (Code: ' . $file->getError() . ')');
+            return $this->failValidationErrors('檔案上傳失敗：' . $file->getErrorString());
+        }
+
+        // Check file extension
+        $allowedExtensions = ['xls', 'xlsx'];
+        $extension = strtolower($file->getExtension());
+        if (!in_array($extension, $allowedExtensions)) {
+            log_message('error', '[Import XLS] FAILED: Invalid file extension: ' . $extension);
+            return $this->failValidationErrors('請上傳 XLS 或 XLSX 格式的檔案');
+        }
+
         try {
+            log_message('debug', '[Import XLS] Loading spreadsheet from: ' . $file->getTempName());
+
             // Explicitly set reader if possible to avoid detection issues with temp files
             $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($file->getTempName());
             $worksheet = $spreadsheet->getActiveSheet();
             $rows = $worksheet->toArray();
 
+            log_message('info', '[Import XLS] Spreadsheet loaded successfully. Total rows: ' . count($rows));
+
             if (empty($rows)) {
+                log_message('error', '[Import XLS] FAILED: Spreadsheet is empty');
                 return $this->failValidationErrors('檔案為空');
             }
 
             // Row 0 is Headers
             $headers = $rows[0];
-
-            // A2 is (1, 0) index. Member Name is column A.
-            // But now we essentially want to map rows to customers and return the data.
+            log_message('info', '[Import XLS] Headers detected: ' . json_encode($headers, JSON_UNESCAPED_UNICODE));
 
             $db = \Config\Database::connect();
             $matched = [];
             $notFound = [];
+            $emptyRows = 0;
 
             // Loop from row 1
             for ($i = 1; $i < count($rows); $i++) {
                 $row = $rows[$i];
                 $name = trim($row[0] ?? ''); // Column A is name
 
-                if (empty($name)) continue;
+                if (empty($name)) {
+                    $emptyRows++;
+                    continue;
+                }
 
                 // Only match customers belonging to this user
                 $customer = $db->table('customers')
@@ -180,14 +223,30 @@ class Notifications extends ResourceController
                 }
             }
 
+            log_message('info', '[Import XLS] Processing complete: ' . json_encode([
+                'total_rows' => count($rows) - 1,
+                'empty_rows' => $emptyRows,
+                'matched_count' => count($matched),
+                'not_found_count' => count(array_unique($notFound)),
+                'not_found_names' => array_values(array_unique($notFound))
+            ], JSON_UNESCAPED_UNICODE));
+
+            log_message('info', '[Import XLS] ========== Import Preview Completed Successfully ==========');
+
             return $this->respond([
                 'headers' => array_filter($headers), // Return headers for frontend selection
                 'matched' => $matched,
                 'not_found' => array_values(array_unique($notFound))
             ]);
+        } catch (\PhpOffice\PhpSpreadsheet\Reader\Exception $e) {
+            log_message('error', '[Import XLS] Spreadsheet Reader Error: ' . $e->getMessage());
+            log_message('error', '[Import XLS] Stack trace: ' . $e->getTraceAsString());
+            return $this->fail('無法讀取檔案格式：' . $e->getMessage(), 400);
         } catch (\Throwable $e) {
-            log_message('error', 'Import XLS failed: ' . $e->getMessage());
-            return $this->fail('讀取檔案出錯：' . $e->getMessage());
+            log_message('error', '[Import XLS] Unexpected Error: ' . $e->getMessage());
+            log_message('error', '[Import XLS] Exception class: ' . get_class($e));
+            log_message('error', '[Import XLS] Stack trace: ' . $e->getTraceAsString());
+            return $this->fail('讀取檔案出錯：' . $e->getMessage(), 400);
         }
     }
 
