@@ -284,4 +284,118 @@ class Users extends ResourceController
 
         return $this->respond(['success' => true, 'message' => '個人資料已更新']);
     }
+
+    /**
+     * Get detailed information about a specific user (admin only)
+     */
+    public function details($id = null)
+    {
+        $currentUser = $this->getCurrentUser();
+        if (!$currentUser || $currentUser['role'] !== 'admin') {
+            return $this->failForbidden('只有管理員可以存取');
+        }
+
+        if (!$id) return $this->failNotFound();
+
+        $db = \Config\Database::connect();
+
+        // Get user basic info
+        $user = $db->table('users')
+            ->select('id, username, name, role, webhook_key, is_active, can_create_users, message_quota, created_at')
+            ->where('id', $id)
+            ->get()
+            ->getRowArray();
+
+        if (!$user) {
+            return $this->failNotFound('使用者不存在');
+        }
+
+        // Get pagination parameters
+        $page = $this->request->getGet('page') ?? 1;
+        $limit = $this->request->getGet('limit') ?? 10;
+        $offset = ($page - 1) * $limit;
+        $type = $this->request->getGet('type') ?? 'customers'; // customers, templates, messages, line_users, activity_logs
+
+        $result = [
+            'user' => $user,
+            'stats' => [
+                'customers' => $db->table('customers')->where('user_id', $id)->countAllResults(),
+                'templates' => $db->table('templates')->where('user_id', $id)->countAllResults(),
+                'messages_total' => $db->table('messages')->where('user_id', $id)->countAllResults(),
+                'messages_this_month' => $db->table('messages')
+                    ->where('user_id', $id)
+                    ->where('sender', 'system')
+                    ->where('created_at >=', date('Y-m-01 00:00:00'))
+                    ->where('created_at <=', date('Y-m-t 23:59:59'))
+                    ->countAllResults(),
+                'line_users' => $db->table('line_users')->where('user_id', $id)->countAllResults(),
+                'activity_logs' => $db->table('activity_logs')->where('user_id', $id)->countAllResults(),
+            ]
+        ];
+
+        // Get detailed data based on type
+        switch ($type) {
+            case 'customers':
+                $result['data'] = $db->table('customers')
+                    ->where('user_id', $id)
+                    ->orderBy('created_at', 'DESC')
+                    ->limit($limit, $offset)
+                    ->get()
+                    ->getResultArray();
+                $result['total'] = $result['stats']['customers'];
+                break;
+
+            case 'templates':
+                $result['data'] = $db->table('templates')
+                    ->where('user_id', $id)
+                    ->orderBy('created_at', 'DESC')
+                    ->limit($limit, $offset)
+                    ->get()
+                    ->getResultArray();
+                $result['total'] = $result['stats']['templates'];
+                break;
+
+            case 'messages':
+                $result['data'] = $db->table('messages')
+                    ->select('messages.*, customers.custom_name, customers.line_uid')
+                    ->join('customers', 'customers.id = messages.customer_id', 'left')
+                    ->where('messages.user_id', $id)
+                    ->orderBy('messages.created_at', 'DESC')
+                    ->limit($limit, $offset)
+                    ->get()
+                    ->getResultArray();
+                $result['total'] = $result['stats']['messages_total'];
+                break;
+
+            case 'line_users':
+                $result['data'] = $db->table('line_users')
+                    ->where('user_id', $id)
+                    ->orderBy('created_at', 'DESC')
+                    ->limit($limit, $offset)
+                    ->get()
+                    ->getResultArray();
+                $result['total'] = $result['stats']['line_users'];
+                break;
+
+            case 'activity_logs':
+                $result['data'] = $db->table('activity_logs')
+                    ->where('user_id', $id)
+                    ->orderBy('created_at', 'DESC')
+                    ->limit($limit, $offset)
+                    ->get()
+                    ->getResultArray();
+                $result['total'] = $result['stats']['activity_logs'];
+                break;
+
+            default:
+                $result['data'] = [];
+                $result['total'] = 0;
+        }
+
+        $result['page'] = (int)$page;
+        $result['limit'] = (int)$limit;
+        $result['type'] = $type;
+
+        return $this->respond($result);
+    }
 }

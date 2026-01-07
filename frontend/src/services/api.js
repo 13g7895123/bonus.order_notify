@@ -169,7 +169,11 @@ export const api = {
         create: async (data) => fetchWithAuth(`${API_URL}/users`, { method: 'POST', body: JSON.stringify(data) }),
         update: async (id, data) => fetchWithAuth(`${API_URL}/users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
         delete: async (id) => fetchWithAuth(`${API_URL}/users/${id}`, { method: 'DELETE' }),
-        regenerateWebhook: async (id) => (await fetchWithAuth(`${API_URL}/users/${id}/regenerate-webhook`, { method: 'POST' })).json()
+        regenerateWebhook: async (id) => (await fetchWithAuth(`${API_URL}/users/${id}/regenerate-webhook`, { method: 'POST' })).json(),
+        details: async (id, type = 'customers', page = 1, limit = 10) => {
+            const params = new URLSearchParams({ type, page, limit }).toString();
+            return (await fetchWithAuth(`${API_URL}/users/${id}/details?${params}`)).json();
+        }
     },
     activityLogs: {
         list: async (params = {}) => {

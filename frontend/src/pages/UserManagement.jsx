@@ -3,7 +3,7 @@ import { api } from '../services/api';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
-import { Plus, Trash2, Edit2, Users, Key, Copy, Check, RefreshCw, Shield, User, MessageSquare, FileText, UserCheck } from 'lucide-react';
+import { Plus, Trash2, Edit2, Users, Key, Copy, Check, RefreshCw, Shield, User, MessageSquare, FileText, UserCheck, Eye, X, ChevronLeft, ChevronRight, Activity } from 'lucide-react';
 
 const UserManagement = () => {
     const [users, setUsers] = useState([]);
@@ -23,6 +23,17 @@ const UserManagement = () => {
     });
     const [copiedKey, setCopiedKey] = useState(null);
     const [saved, setSaved] = useState(false);
+
+    // Details modal states
+    const [showDetails, setShowDetails] = useState(false);
+    const [selectedUser, setSelectedUser] = useState(null);
+    const [detailsType, setDetailsType] = useState('customers');
+    const [detailsData, setDetailsData] = useState([]);
+    const [detailsStats, setDetailsStats] = useState({});
+    const [detailsPage, setDetailsPage] = useState(1);
+    const [detailsTotal, setDetailsTotal] = useState(0);
+    const [detailsLimit] = useState(10);
+    const [loadingDetails, setLoadingDetails] = useState(false);
 
     useEffect(() => {
         loadUsers();
@@ -132,6 +143,38 @@ const UserManagement = () => {
             await api.users.regenerateWebhook(userId);
             loadUsers();
         }
+    };
+
+    const handleViewDetails = async (user) => {
+        setSelectedUser(user);
+        setShowDetails(true);
+        setDetailsType('customers');
+        setDetailsPage(1);
+        await loadUserDetails(user.id, 'customers', 1);
+    };
+
+    const loadUserDetails = async (userId, type, page) => {
+        setLoadingDetails(true);
+        try {
+            const data = await api.users.details(userId, type, page, detailsLimit);
+            setDetailsData(data.data || []);
+            setDetailsStats(data.stats || {});
+            setDetailsTotal(data.total || 0);
+        } catch (e) {
+            console.error('Failed to load user details', e);
+        }
+        setLoadingDetails(false);
+    };
+
+    const handleDetailsTypeChange = async (type) => {
+        setDetailsType(type);
+        setDetailsPage(1);
+        await loadUserDetails(selectedUser.id, type, 1);
+    };
+
+    const handleDetailsPageChange = async (newPage) => {
+        setDetailsPage(newPage);
+        await loadUserDetails(selectedUser.id, detailsType, newPage);
     };
 
     if (loading) {
@@ -313,6 +356,9 @@ const UserManagement = () => {
                                     </div>
                                 </div>
                                 <div className="flex gap-2">
+                                    <button onClick={() => handleViewDetails(user)} style={{ color: 'var(--accent-primary)', cursor: 'pointer', background: 'none', border: 'none', padding: '8px' }} title="查看詳細資料">
+                                        <Eye size={18} />
+                                    </button>
                                     <button onClick={() => handleEdit(user)} style={{ color: 'var(--accent-primary)', cursor: 'pointer', background: 'none', border: 'none', padding: '8px' }}>
                                         <Edit2 size={18} />
                                     </button>
@@ -432,6 +478,355 @@ const UserManagement = () => {
                             尚無使用者資料。
                         </Card>
                     )}
+                </div>
+            )}
+
+            {/* Details Modal */}
+            {showDetails && selectedUser && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 1000,
+                    padding: '2rem'
+                }}>
+                    <div style={{
+                        backgroundColor: 'var(--bg-primary)',
+                        borderRadius: '12px',
+                        width: '100%',
+                        maxWidth: '1200px',
+                        maxHeight: '90vh',
+                        overflow: 'auto',
+                        position: 'relative'
+                    }}>
+                        {/* Header */}
+                        <div style={{
+                            padding: '1.5rem',
+                            borderBottom: '1px solid var(--border-color)',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            position: 'sticky',
+                            top: 0,
+                            backgroundColor: 'var(--bg-primary)',
+                            zIndex: 1
+                        }}>
+                            <div>
+                                <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+                                    {selectedUser.name || selectedUser.username} 的詳細資料
+                                </h2>
+                                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                                    @{selectedUser.username}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setShowDetails(false)}
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'var(--text-secondary)',
+                                    cursor: 'pointer',
+                                    padding: '8px'
+                                }}
+                            >
+                                <X size={24} />
+                            </button>
+                        </div>
+
+                        {/* Stats Overview */}
+                        <div style={{
+                            padding: '1.5rem',
+                            borderBottom: '1px solid var(--border-color)',
+                            backgroundColor: 'rgba(255,255,255,0.02)'
+                        }}>
+                            <div style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                                gap: '1rem'
+                            }}>
+                                <div style={{ textAlign: 'center', padding: '1rem', backgroundColor: 'rgba(59, 130, 246, 0.1)', borderRadius: '8px' }}>
+                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>客戶</div>
+                                    <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: 'var(--accent-primary)' }}>{detailsStats.customers || 0}</div>
+                                </div>
+                                <div style={{ textAlign: 'center', padding: '1rem', backgroundColor: 'rgba(16, 185, 129, 0.1)', borderRadius: '8px' }}>
+                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>範本</div>
+                                    <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: 'var(--success)' }}>{detailsStats.templates || 0}</div>
+                                </div>
+                                <div style={{ textAlign: 'center', padding: '1rem', backgroundColor: 'rgba(245, 158, 11, 0.1)', borderRadius: '8px' }}>
+                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>本月訊息</div>
+                                    <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#f59e0b' }}>{detailsStats.messages_this_month || 0}</div>
+                                </div>
+                                <div style={{ textAlign: 'center', padding: '1rem', backgroundColor: 'rgba(139, 92, 246, 0.1)', borderRadius: '8px' }}>
+                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>LINE 使用者</div>
+                                    <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#8b5cf6' }}>{detailsStats.line_users || 0}</div>
+                                </div>
+                                <div style={{ textAlign: 'center', padding: '1rem', backgroundColor: 'rgba(236, 72, 153, 0.1)', borderRadius: '8px' }}>
+                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>活動日誌</div>
+                                    <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#ec4899' }}>{detailsStats.activity_logs || 0}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Type Selector */}
+                        <div style={{
+                            padding: '1rem 1.5rem',
+                            borderBottom: '1px solid var(--border-color)',
+                            display: 'flex',
+                            gap: '0.5rem',
+                            overflowX: 'auto'
+                        }}>
+                            {[
+                                { key: 'customers', label: '客戶', icon: UserCheck },
+                                { key: 'templates', label: '範本', icon: FileText },
+                                { key: 'messages', label: '訊息記錄', icon: MessageSquare },
+                                { key: 'line_users', label: 'LINE 使用者', icon: Users },
+                                { key: 'activity_logs', label: '活動日誌', icon: Activity }
+                            ].map(({ key, label, icon: Icon }) => (
+                                <button
+                                    key={key}
+                                    onClick={() => handleDetailsTypeChange(key)}
+                                    style={{
+                                        padding: '0.5rem 1rem',
+                                        border: 'none',
+                                        borderRadius: '6px',
+                                        backgroundColor: detailsType === key ? 'var(--accent-primary)' : 'var(--bg-secondary)',
+                                        color: detailsType === key ? 'white' : 'var(--text-primary)',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem',
+                                        fontSize: '0.9rem',
+                                        whiteSpace: 'nowrap'
+                                    }}
+                                >
+                                    <Icon size={16} />
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Data Content */}
+                        <div style={{ padding: '1.5rem', minHeight: '300px' }}>
+                            {loadingDetails ? (
+                                <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
+                                    載入中...
+                                </div>
+                            ) : detailsData.length === 0 ? (
+                                <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
+                                    暫無資料
+                                </div>
+                            ) : (
+                                <>
+                                    {detailsType === 'customers' && (
+                                        <div style={{ display: 'grid', gap: '0.5rem' }}>
+                                            {detailsData.map(customer => (
+                                                <div key={customer.id} style={{
+                                                    padding: '1rem',
+                                                    backgroundColor: 'var(--bg-secondary)',
+                                                    borderRadius: '8px',
+                                                    display: 'flex',
+                                                    justifyContent: 'space-between',
+                                                    alignItems: 'center'
+                                                }}>
+                                                    <div>
+                                                        <div style={{ fontWeight: '600' }}>{customer.custom_name || '未命名'}</div>
+                                                        <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                                                            LINE UID: {customer.line_uid}
+                                                        </div>
+                                                    </div>
+                                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                                        {new Date(customer.created_at).toLocaleString('zh-TW')}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {detailsType === 'templates' && (
+                                        <div style={{ display: 'grid', gap: '0.5rem' }}>
+                                            {detailsData.map(template => (
+                                                <div key={template.id} style={{
+                                                    padding: '1rem',
+                                                    backgroundColor: 'var(--bg-secondary)',
+                                                    borderRadius: '8px'
+                                                }}>
+                                                    <div style={{ fontWeight: '600', marginBottom: '0.5rem' }}>{template.name}</div>
+                                                    <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
+                                                        {template.content}
+                                                    </div>
+                                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                                        建立時間: {new Date(template.created_at).toLocaleString('zh-TW')}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {detailsType === 'messages' && (
+                                        <div style={{ display: 'grid', gap: '0.5rem' }}>
+                                            {detailsData.map(message => (
+                                                <div key={message.id} style={{
+                                                    padding: '1rem',
+                                                    backgroundColor: 'var(--bg-secondary)',
+                                                    borderRadius: '8px'
+                                                }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                                                        <div style={{ fontWeight: '600' }}>
+                                                            {message.custom_name || message.line_uid || '未知客戶'}
+                                                        </div>
+                                                        <div style={{
+                                                            fontSize: '0.75rem',
+                                                            padding: '2px 8px',
+                                                            borderRadius: '4px',
+                                                            backgroundColor: message.sender === 'system' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(16, 185, 129, 0.2)',
+                                                            color: message.sender === 'system' ? 'var(--accent-primary)' : 'var(--success)'
+                                                        }}>
+                                                            {message.sender === 'system' ? '系統' : '使用者'}
+                                                        </div>
+                                                    </div>
+                                                    <div style={{ fontSize: '0.9rem', marginBottom: '0.5rem' }}>
+                                                        {message.content}
+                                                    </div>
+                                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                                        {new Date(message.created_at).toLocaleString('zh-TW')}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {detailsType === 'line_users' && (
+                                        <div style={{ display: 'grid', gap: '0.5rem' }}>
+                                            {detailsData.map(lineUser => (
+                                                <div key={lineUser.id} style={{
+                                                    padding: '1rem',
+                                                    backgroundColor: 'var(--bg-secondary)',
+                                                    borderRadius: '8px',
+                                                    display: 'flex',
+                                                    justifyContent: 'space-between',
+                                                    alignItems: 'center'
+                                                }}>
+                                                    <div>
+                                                        <div style={{ fontWeight: '600' }}>{lineUser.display_name || '未命名'}</div>
+                                                        <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                                                            LINE UID: {lineUser.line_uid}
+                                                        </div>
+                                                    </div>
+                                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                                        {new Date(lineUser.created_at).toLocaleString('zh-TW')}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {detailsType === 'activity_logs' && (
+                                        <div style={{ display: 'grid', gap: '0.5rem' }}>
+                                            {detailsData.map(log => (
+                                                <div key={log.id} style={{
+                                                    padding: '1rem',
+                                                    backgroundColor: 'var(--bg-secondary)',
+                                                    borderRadius: '8px'
+                                                }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                                                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                                            <span style={{
+                                                                fontSize: '0.75rem',
+                                                                padding: '2px 8px',
+                                                                borderRadius: '4px',
+                                                                backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                                                                color: 'var(--accent-primary)',
+                                                                fontWeight: '600'
+                                                            }}>
+                                                                {log.method}
+                                                            </span>
+                                                            <span style={{ fontWeight: '600', fontSize: '0.9rem' }}>{log.endpoint}</span>
+                                                        </div>
+                                                        <div style={{
+                                                            fontSize: '0.75rem',
+                                                            padding: '2px 8px',
+                                                            borderRadius: '4px',
+                                                            backgroundColor: log.response_code >= 200 && log.response_code < 300 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+                                                            color: log.response_code >= 200 && log.response_code < 300 ? 'var(--success)' : 'var(--danger)'
+                                                        }}>
+                                                            {log.response_code}
+                                                        </div>
+                                                    </div>
+                                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                                                        IP: {log.ip_address} | {new Date(log.created_at).toLocaleString('zh-TW')}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+
+                        {/* Pagination */}
+                        {!loadingDetails && detailsTotal > detailsLimit && (
+                            <div style={{
+                                padding: '1rem 1.5rem',
+                                borderTop: '1px solid var(--border-color)',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                position: 'sticky',
+                                bottom: 0,
+                                backgroundColor: 'var(--bg-primary)'
+                            }}>
+                                <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                                    顯示 {((detailsPage - 1) * detailsLimit) + 1} - {Math.min(detailsPage * detailsLimit, detailsTotal)} / 共 {detailsTotal} 筆
+                                </div>
+                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                    <button
+                                        onClick={() => handleDetailsPageChange(detailsPage - 1)}
+                                        disabled={detailsPage === 1}
+                                        style={{
+                                            padding: '0.5rem 1rem',
+                                            border: '1px solid var(--border-color)',
+                                            borderRadius: '6px',
+                                            backgroundColor: 'var(--bg-secondary)',
+                                            color: 'var(--text-primary)',
+                                            cursor: detailsPage === 1 ? 'not-allowed' : 'pointer',
+                                            opacity: detailsPage === 1 ? 0.5 : 1,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.5rem'
+                                        }}
+                                    >
+                                        <ChevronLeft size={16} />
+                                        上一頁
+                                    </button>
+                                    <button
+                                        onClick={() => handleDetailsPageChange(detailsPage + 1)}
+                                        disabled={detailsPage >= Math.ceil(detailsTotal / detailsLimit)}
+                                        style={{
+                                            padding: '0.5rem 1rem',
+                                            border: '1px solid var(--border-color)',
+                                            borderRadius: '6px',
+                                            backgroundColor: 'var(--bg-secondary)',
+                                            color: 'var(--text-primary)',
+                                            cursor: detailsPage >= Math.ceil(detailsTotal / detailsLimit) ? 'not-allowed' : 'pointer',
+                                            opacity: detailsPage >= Math.ceil(detailsTotal / detailsLimit) ? 0.5 : 1,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.5rem'
+                                        }}
+                                    >
+                                        下一頁
+                                        <ChevronRight size={16} />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
         </div>
