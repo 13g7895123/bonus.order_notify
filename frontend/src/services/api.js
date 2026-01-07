@@ -25,13 +25,16 @@ const onTokenRefreshed = () => {
 
 // Wrapper for fetch with automatic token refresh
 const fetchWithAuth = async (url, options = {}) => {
+    // Don't set Content-Type for FormData - browser will set it automatically with boundary
+    const isFormData = options.body instanceof FormData;
+    const headers = isFormData
+        ? { ...options.headers }
+        : { ...getHeaders(), ...options.headers };
+
     const response = await fetch(url, {
         ...options,
         ...fetchOptions,
-        headers: {
-            ...getHeaders(),
-            ...options.headers
-        }
+        headers
     });
 
     // If unauthorized, try to refresh token
@@ -53,10 +56,7 @@ const fetchWithAuth = async (url, options = {}) => {
                     return fetch(url, {
                         ...options,
                         ...fetchOptions,
-                        headers: {
-                            ...getHeaders(),
-                            ...options.headers
-                        }
+                        headers
                     });
                 } else {
                     isRefreshing = false;
@@ -76,10 +76,7 @@ const fetchWithAuth = async (url, options = {}) => {
                     resolve(fetch(url, {
                         ...options,
                         ...fetchOptions,
-                        headers: {
-                            ...getHeaders(),
-                            ...options.headers
-                        }
+                        headers
                     }));
                 });
             });
