@@ -16,6 +16,8 @@ $routes->group('api', ['namespace' => 'App\Controllers\Api'], function ($routes)
     $routes->post('auth/refresh', 'Auth::refresh');
     $routes->get('auth/me', 'Auth::me');
     $routes->get('auth/debug', 'Auth::debug');
+    $routes->post('auth/impersonate/(:num)', 'Auth::impersonate/$1');
+    $routes->post('auth/stop-impersonate', 'Auth::stopImpersonate');
 
     // Templates
     $routes->get('templates', 'Templates::index');
@@ -61,6 +63,7 @@ $routes->group('api', ['namespace' => 'App\Controllers\Api'], function ($routes)
     // Activity Logs (Admin)
     $routes->get('activity-logs', 'ActivityLogs::index');
     $routes->get('activity-logs/stats', 'ActivityLogs::stats');
+    $routes->get('activity-logs/(:num)', 'ActivityLogs::show/$1');
     $routes->delete('activity-logs', 'ActivityLogs::clear');
 
     // User Applications

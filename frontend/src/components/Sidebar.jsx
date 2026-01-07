@@ -1,10 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, FileText, Users, Send, Settings, LogOut, MessageCircle, Shield, Activity, UserPlus } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, Send, Settings, LogOut, MessageCircle, Shield, Activity, UserPlus, UserX } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { api } from '../services/api';
 
 const Sidebar = () => {
-    const { logout, user } = useAuth();
+    const { logout, user, setUser } = useAuth();
+    const [isStoppingImpersonate, setIsStoppingImpersonate] = useState(false);
+
     const navItems = [
         { path: '/', icon: <LayoutDashboard size={20} />, label: '儀表板' },
         { path: '/templates', icon: <FileText size={20} />, label: '通知範本' },
@@ -16,12 +19,29 @@ const Sidebar = () => {
             { path: '/invite', icon: <UserPlus size={20} />, label: '建立使用者' }
         ] : []),
         { path: '/settings', icon: <Settings size={20} />, label: '個人設定' },
-        // 管理員專用功能
-        ...(user?.role === 'admin' ? [
+        // 管理員專用功能（不在模擬狀態時才顯示）
+        ...(user?.role === 'admin' && !user?.impersonating ? [
             { path: '/users', icon: <Shield size={20} />, label: '使用者管理' },
             { path: '/activity-logs', icon: <Activity size={20} />, label: '操作紀錄' }
         ] : []),
     ];
+
+    const handleStopImpersonate = async () => {
+        setIsStoppingImpersonate(true);
+        try {
+            const result = await api.auth.stopImpersonate();
+            if (result.success) {
+                setUser(result.user);
+                window.location.href = '/users';
+            } else {
+                alert(result.messages?.error || '恢復身份失敗');
+            }
+        } catch (e) {
+            console.error('Stop impersonate failed', e);
+            alert('恢復身份失敗');
+        }
+        setIsStoppingImpersonate(false);
+    };
 
     return (
         <div style={{
@@ -37,6 +57,44 @@ const Sidebar = () => {
                 <Send size={24} />
                 NotifyHub
             </div>
+
+            {/* Impersonation Warning Banner */}
+            {user?.impersonating && (
+                <div style={{
+                    backgroundColor: 'rgba(245, 158, 11, 0.2)',
+                    border: '1px solid rgba(245, 158, 11, 0.5)',
+                    borderRadius: '8px',
+                    padding: '12px',
+                    marginBottom: '1rem',
+                    fontSize: '0.85rem'
+                }}>
+                    <div style={{ color: '#f59e0b', fontWeight: '600', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <UserX size={16} />
+                        模擬登入中
+                    </div>
+                    <div style={{ color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                        您目前正以其他使用者的身份操作。
+                    </div>
+                    <button
+                        onClick={handleStopImpersonate}
+                        disabled={isStoppingImpersonate}
+                        style={{
+                            width: '100%',
+                            padding: '8px',
+                            backgroundColor: '#f59e0b',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '6px',
+                            cursor: isStoppingImpersonate ? 'wait' : 'pointer',
+                            fontSize: '0.85rem',
+                            fontWeight: '600'
+                        }}
+                    >
+                        {isStoppingImpersonate ? '恢復中...' : '恢復管理員身份'}
+                    </button>
+                </div>
+            )}
+
             <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {navItems.map((item) => (
                     <NavLink
@@ -69,14 +127,15 @@ const Sidebar = () => {
                         gap: '12px',
                         padding: '12px',
                         marginBottom: '0.5rem',
-                        backgroundColor: 'rgba(255,255,255,0.03)',
-                        borderRadius: '8px'
+                        backgroundColor: user.impersonating ? 'rgba(245, 158, 11, 0.1)' : 'rgba(255,255,255,0.03)',
+                        borderRadius: '8px',
+                        border: user.impersonating ? '1px solid rgba(245, 158, 11, 0.3)' : 'none'
                     }}>
                         <div style={{
                             width: '36px',
                             height: '36px',
                             borderRadius: '50%',
-                            backgroundColor: 'var(--accent-primary)',
+                            backgroundColor: user.impersonating ? '#f59e0b' : 'var(--accent-primary)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -107,13 +166,15 @@ const Sidebar = () => {
                             </div>
                             <div style={{
                                 fontSize: '0.7rem',
-                                color: 'var(--text-secondary)',
+                                color: user.impersonating ? '#f59e0b' : 'var(--text-secondary)',
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '4px',
                                 marginTop: '2px'
                             }}>
-                                {user.role === 'admin' ? (
+                                {user.impersonating ? (
+                                    <><UserX size={10} /> 模擬中</>
+                                ) : user.role === 'admin' ? (
                                     <><Shield size={10} /> 管理員</>
                                 ) : (
                                     '一般使用者'

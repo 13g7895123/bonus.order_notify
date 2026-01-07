@@ -123,6 +123,14 @@ export const api = {
             });
             if (!res.ok) return null;
             return res.json();
+        },
+        impersonate: async (userId) => {
+            const res = await fetchWithAuth(`${API_URL}/auth/impersonate/${userId}`, { method: 'POST' });
+            return res.json();
+        },
+        stopImpersonate: async () => {
+            const res = await fetchWithAuth(`${API_URL}/auth/stop-impersonate`, { method: 'POST' });
+            return res.json();
         }
     },
     templates: {
@@ -180,6 +188,7 @@ export const api = {
             const query = new URLSearchParams(params).toString();
             return (await fetchWithAuth(`${API_URL}/activity-logs${query ? '?' + query : ''}`)).json();
         },
+        show: async (id) => (await fetchWithAuth(`${API_URL}/activity-logs/${id}`)).json(),
         stats: async () => (await fetchWithAuth(`${API_URL}/activity-logs/stats`)).json(),
         clear: async (days = 30) => fetchWithAuth(`${API_URL}/activity-logs?days=${days}`, { method: 'DELETE' })
     },

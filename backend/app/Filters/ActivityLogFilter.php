@@ -99,7 +99,9 @@ class ActivityLogFilter implements FilterInterface
 
         // Log to database
         $db = \Config\Database::connect();
-        $db->table('activity_logs')->insert([
+
+        // Prepare log data
+        $insertData = [
             'user_id' => $userId,
             'username' => $username,
             'method' => $logData['method'],
@@ -109,7 +111,19 @@ class ActivityLogFilter implements FilterInterface
             'ip_address' => $logData['ip_address'],
             'user_agent' => $logData['user_agent'],
             'created_at' => date('Y-m-d H:i:s')
-        ]);
+        ];
+
+        // If response is not 200, record detailed response body
+        $statusCode = $response->getStatusCode();
+        if ($statusCode < 200 || $statusCode >= 300) {
+            $responseBody = $response->getBody();
+            if (!empty($responseBody)) {
+                // Limit response body size to prevent too large data
+                $insertData['response_body'] = substr($responseBody, 0, 65535);
+            }
+        }
+
+        $db->table('activity_logs')->insert($insertData);
     }
 
     /**

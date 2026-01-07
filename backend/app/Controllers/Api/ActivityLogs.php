@@ -73,6 +73,45 @@ class ActivityLogs extends ResourceController
     }
 
     /**
+     * Get single log detail (admin only)
+     */
+    public function show($id = null)
+    {
+        $currentUser = $this->getCurrentUser();
+        if (!$currentUser || $currentUser['role'] !== 'admin') {
+            return $this->failForbidden('只有管理員可以存取');
+        }
+
+        if (!$id) {
+            return $this->failNotFound();
+        }
+
+        $db = \Config\Database::connect();
+        $log = $db->table('activity_logs')->where('id', $id)->get()->getRowArray();
+
+        if (!$log) {
+            return $this->failNotFound('日誌不存在');
+        }
+
+        // Try to pretty format JSON
+        if ($log['request_body']) {
+            $decoded = json_decode($log['request_body'], true);
+            if ($decoded !== null) {
+                $log['request_body_formatted'] = $decoded;
+            }
+        }
+
+        if ($log['response_body']) {
+            $decoded = json_decode($log['response_body'], true);
+            if ($decoded !== null) {
+                $log['response_body_formatted'] = $decoded;
+            }
+        }
+
+        return $this->respond($log);
+    }
+
+    /**
      * Get log statistics
      */
     public function stats()

@@ -3,7 +3,7 @@ import { api } from '../services/api';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
-import { Plus, Trash2, Edit2, Users, Key, Copy, Check, RefreshCw, Shield, User, MessageSquare, FileText, UserCheck, Eye, X, ChevronLeft, ChevronRight, Activity } from 'lucide-react';
+import { Plus, Trash2, Edit2, Users, Key, Copy, Check, RefreshCw, Shield, User, MessageSquare, FileText, UserCheck, Eye, X, ChevronLeft, ChevronRight, Activity, LogIn } from 'lucide-react';
 
 const UserManagement = () => {
     const [users, setUsers] = useState([]);
@@ -175,6 +175,25 @@ const UserManagement = () => {
     const handleDetailsPageChange = async (newPage) => {
         setDetailsPage(newPage);
         await loadUserDetails(selectedUser.id, detailsType, newPage);
+    };
+
+    const handleImpersonate = async (user) => {
+        if (!confirm(`確定要以「${user.name || user.username}」的身份登入嗎？\n\n您可以從右上角選單恢復管理員身份。`)) {
+            return;
+        }
+        try {
+            const result = await api.auth.impersonate(user.id);
+            if (result.success) {
+                alert(`已切換至「${user.name || user.username}」的身份`);
+                // Refresh the page to reload user context
+                window.location.href = '/';
+            } else {
+                alert(result.messages?.error || '模擬登入失敗');
+            }
+        } catch (e) {
+            console.error('Impersonate failed', e);
+            alert('模擬登入失敗');
+        }
     };
 
     if (loading) {
@@ -359,10 +378,15 @@ const UserManagement = () => {
                                     <button onClick={() => handleViewDetails(user)} style={{ color: 'var(--accent-primary)', cursor: 'pointer', background: 'none', border: 'none', padding: '8px' }} title="查看詳細資料">
                                         <Eye size={18} />
                                     </button>
-                                    <button onClick={() => handleEdit(user)} style={{ color: 'var(--accent-primary)', cursor: 'pointer', background: 'none', border: 'none', padding: '8px' }}>
+                                    {user.role !== 'admin' && (
+                                        <button onClick={() => handleImpersonate(user)} style={{ color: '#f59e0b', cursor: 'pointer', background: 'none', border: 'none', padding: '8px' }} title="以此使用者身份登入">
+                                            <LogIn size={18} />
+                                        </button>
+                                    )}
+                                    <button onClick={() => handleEdit(user)} style={{ color: 'var(--accent-primary)', cursor: 'pointer', background: 'none', border: 'none', padding: '8px' }} title="編輯">
                                         <Edit2 size={18} />
                                     </button>
-                                    <button onClick={() => handleDelete(user.id)} style={{ color: 'var(--danger)', cursor: 'pointer', background: 'none', border: 'none', padding: '8px' }}>
+                                    <button onClick={() => handleDelete(user.id)} style={{ color: 'var(--danger)', cursor: 'pointer', background: 'none', border: 'none', padding: '8px' }} title="刪除">
                                         <Trash2 size={18} />
                                     </button>
                                 </div>

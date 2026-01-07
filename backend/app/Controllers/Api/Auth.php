@@ -161,7 +161,159 @@ class Auth extends ResourceController
             'name' => $currentUser['name'],
             'role' => $currentUser['role'] ?? 'user',
             'webhook_key' => $currentUser['webhook_key'] ?? null,
-            'can_create_users' => (bool)($currentUser['can_create_users'] ?? false)
+            'can_create_users' => (bool)($currentUser['can_create_users'] ?? false),
+            'impersonating' => $_COOKIE['original_admin_token'] ?? null ? true : false
+        ]);
+    }
+
+    /**
+     * Impersonate another user (admin only)
+     */
+    public function impersonate($userId = null)
+    {
+        $currentUser = $this->getCurrentUser();
+
+        if (!$currentUser || $currentUser['role'] !== 'admin') {
+            return $this->failForbidden('只有管理員可以使用此功能');
+        }
+
+        if (!$userId) {
+            return $this->failValidationErrors('請指定使用者 ID');
+        }
+
+        // Cannot impersonate self
+        if ($currentUser['id'] == $userId) {
+            return $this->failValidationErrors('無法模擬自己');
+        }
+
+        $db = \Config\Database::connect();
+
+        // Find target user
+        $targetUser = $db->table('users')->where('id', $userId)->get()->getRowArray();
+
+        if (!$targetUser) {
+            return $this->failNotFound('使用者不存在');
+        }
+
+        // Store original admin token for later restoration
+        $originalToken = $_COOKIE['access_token'] ?? null;
+
+        // Generate new access token for target user
+        $accessToken = bin2hex(random_bytes(32));
+        $db->table('user_tokens')->insert([
+            'user_id' => $targetUser['id'],
+            'token' => $accessToken,
+            'created_at' => date('Y-m-d H:i:s')
+        ]);
+
+        // Generate new refresh token for target user
+        $refreshToken = bin2hex(random_bytes(32));
+        $db->table('refresh_tokens')->insert([
+            'user_id' => $targetUser['id'],
+            'token' => $refreshToken,
+            'expires_at' => date('Y-m-d H:i:s', time() + self::REFRESH_TOKEN_EXPIRY),
+            'created_at' => date('Y-m-d H:i:s')
+        ]);
+
+        // Set cookies for impersonated user
+        $this->setAuthCookies($accessToken, $refreshToken);
+
+        // Store original admin token in a separate cookie for restoration
+        if ($originalToken) {
+            $isProduction = ENVIRONMENT === 'production';
+            setcookie('original_admin_token', $originalToken, [
+                'expires' => time() + 3600, // 1 hour
+                'path' => '/',
+                'domain' => '',
+                'secure' => $isProduction,
+                'httponly' => true,
+                'samesite' => 'Lax'
+            ]);
+        }
+
+        return $this->respond([
+            'success' => true,
+            'message' => '已切換至 ' . ($targetUser['name'] ?? $targetUser['username']) . ' 的身份',
+            'user' => [
+                'id' => $targetUser['id'],
+                'username' => $targetUser['username'],
+                'name' => $targetUser['name'],
+                'role' => $targetUser['role'] ?? 'user',
+                'webhook_key' => $targetUser['webhook_key'] ?? null,
+                'can_create_users' => (bool)($targetUser['can_create_users'] ?? false),
+                'impersonating' => true
+            ]
+        ]);
+    }
+
+    /**
+     * Stop impersonating and restore original admin session
+     */
+    public function stopImpersonate()
+    {
+        $originalToken = $_COOKIE['original_admin_token'] ?? null;
+
+        if (!$originalToken) {
+            return $this->failValidationErrors('您目前不在模擬狀態');
+        }
+
+        $db = \Config\Database::connect();
+
+        // Verify original token still valid
+        $tokenRecord = $db->table('user_tokens')->where('token', $originalToken)->get()->getRowArray();
+
+        if (!$tokenRecord) {
+            // Clear cookies and redirect to login
+            $this->clearAuthCookies();
+            setcookie('original_admin_token', '', ['expires' => time() - 3600, 'path' => '/']);
+            return $this->failUnauthorized('原始登入已過期，請重新登入');
+        }
+
+        // Get original admin user
+        $adminUser = $db->table('users')->where('id', $tokenRecord['user_id'])->get()->getRowArray();
+
+        if (!$adminUser || $adminUser['role'] !== 'admin') {
+            $this->clearAuthCookies();
+            setcookie('original_admin_token', '', ['expires' => time() - 3600, 'path' => '/']);
+            return $this->failForbidden('原始使用者不是管理員');
+        }
+
+        // Delete current impersonated user's token
+        $currentToken = $_COOKIE['access_token'] ?? null;
+        if ($currentToken) {
+            $db->table('user_tokens')->where('token', $currentToken)->delete();
+        }
+        $currentRefreshToken = $_COOKIE['refresh_token'] ?? null;
+        if ($currentRefreshToken) {
+            $db->table('refresh_tokens')->where('token', $currentRefreshToken)->delete();
+        }
+
+        // Restore original admin token
+        $isProduction = ENVIRONMENT === 'production';
+        setcookie('access_token', $originalToken, [
+            'expires' => time() + self::ACCESS_TOKEN_EXPIRY,
+            'path' => '/',
+            'domain' => '',
+            'secure' => $isProduction,
+            'httponly' => true,
+            'samesite' => 'Lax'
+        ]);
+
+        // Clear original_admin_token cookie
+        setcookie('original_admin_token', '', ['expires' => time() - 3600, 'path' => '/']);
+
+        return $this->respond([
+            'success' => true,
+            'message' => '已恢復管理員身份',
+            'user' => [
+                'id' => $adminUser['id'],
+                'username' => $adminUser['username'],
+                'name' => $adminUser['name'],
+                'role' => $adminUser['role'],
+                'webhook_key' => $adminUser['webhook_key'] ?? null,
+                'can_create_users' => (bool)($adminUser['can_create_users'] ?? false),
+                'impersonating' => false
+            ]
         ]);
     }
 
