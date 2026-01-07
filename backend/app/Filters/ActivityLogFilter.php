@@ -8,10 +8,16 @@ use CodeIgniter\HTTP\ResponseInterface;
 
 class ActivityLogFilter implements FilterInterface
 {
+    /**
+     * Static property to store log data between before() and after() calls.
+     * This avoids PHP 8.2+ deprecation warning for dynamic properties.
+     */
+    private static ?array $logData = null;
+
     public function before(RequestInterface $request, $arguments = null)
     {
-        // Store request data for logging after response
-        $request->activityLogData = [
+        // Store request data for logging after response (using static property)
+        self::$logData = [
             'method' => $request->getMethod(),
             'endpoint' => $request->getUri()->getPath(),
             'request_body' => $this->sanitizeRequestBody($request),
@@ -26,12 +32,15 @@ class ActivityLogFilter implements FilterInterface
     public function after(RequestInterface $request, ResponseInterface $response, $arguments = null)
     {
         // Skip if no log data
-        if (!isset($request->activityLogData)) {
+        if (self::$logData === null) {
             return;
         }
 
+        $logData = self::$logData;
+        self::$logData = null; // Reset for next request
+
         // Skip logging for certain endpoints
-        $endpoint = $request->activityLogData['endpoint'];
+        $endpoint = $logData['endpoint'];
         $skipPatterns = [
             '/api/activity-logs',  // Don't log the logs endpoint itself
             '/api/stats',          // Skip frequent stats calls
@@ -93,12 +102,12 @@ class ActivityLogFilter implements FilterInterface
         $db->table('activity_logs')->insert([
             'user_id' => $userId,
             'username' => $username,
-            'method' => $request->activityLogData['method'],
-            'endpoint' => $request->activityLogData['endpoint'],
-            'request_body' => $request->activityLogData['request_body'],
+            'method' => $logData['method'],
+            'endpoint' => $logData['endpoint'],
+            'request_body' => $logData['request_body'],
             'response_code' => $response->getStatusCode(),
-            'ip_address' => $request->activityLogData['ip_address'],
-            'user_agent' => $request->activityLogData['user_agent'],
+            'ip_address' => $logData['ip_address'],
+            'user_agent' => $logData['user_agent'],
             'created_at' => date('Y-m-d H:i:s')
         ]);
     }
