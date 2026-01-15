@@ -59,8 +59,8 @@ class LineWebhook extends ResourceController
             $user = $db->table('users')->where('role', 'admin')->get()->getRowArray();
         }
 
-        // Get request body
-        $body = file_get_contents('php://input');
+        // Get request body - use CodeIgniter's request body (can be read multiple times)
+        $body = $this->request->getBody();
 
         // Detailed Logging of Headers and Body
         log_message('debug', '[LINE Webhook] Headers: ' . json_encode($this->request->getHeaders()));
