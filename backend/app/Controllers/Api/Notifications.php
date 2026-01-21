@@ -298,20 +298,25 @@ class Notifications extends ResourceController
             // Set headers (first row)
             $columnIndex = 1;
             foreach ($headers as $header) {
-                $worksheet->setCellValueByColumnAndRow($columnIndex, 1, $header);
+                $columnLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($columnIndex);
+                $cellCoordinate = $columnLetter . '1';
+
+                // Set value
+                $worksheet->setCellValue($cellCoordinate, $header);
+
                 // Style header row
-                $cell = $worksheet->getCellByColumnAndRow($columnIndex, 1);
-                $cell->getStyle()->getFont()->setBold(true);
-                $cell->getStyle()->getFill()
+                $worksheet->getStyle($cellCoordinate)->getFont()->setBold(true);
+                $worksheet->getStyle($cellCoordinate)->getFill()
                     ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
                     ->getStartColor()->setARGB('FFE0E0E0');
+
                 $columnIndex++;
             }
 
             // Add not found customer names (starting from row 2)
             $rowIndex = 2;
             foreach ($notFoundNames as $name) {
-                $worksheet->setCellValueByColumnAndRow(1, $rowIndex, $name);
+                $worksheet->setCellValue('A' . $rowIndex, $name);
                 $rowIndex++;
             }
 
