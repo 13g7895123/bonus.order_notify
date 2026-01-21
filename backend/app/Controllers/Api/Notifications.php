@@ -251,6 +251,93 @@ class Notifications extends ResourceController
     }
 
     /**
+     * Download not found customers as Excel file
+     */
+    public function downloadNotFoundCustomers()
+    {
+        $userId = $this->getCurrentUserId();
+
+        log_message('info', '[Download Not Found] ========== Download Started ==========');
+        log_message('info', '[Download Not Found] User ID: ' . ($userId ?? 'NULL'));
+
+        if (!$userId) {
+            log_message('error', '[Download Not Found] FAILED: Unauthorized - No valid user ID');
+            return $this->failUnauthorized();
+        }
+
+        $json = $this->request->getJSON();
+
+        if (!$json || !isset($json->headers) || !isset($json->not_found)) {
+            log_message('error', '[Download Not Found] FAILED: Missing required data');
+            return $this->failValidationErrors('缺少必要資料');
+        }
+
+        $headers = $json->headers;
+        $notFoundNames = $json->not_found;
+
+        if (empty($notFoundNames)) {
+            log_message('error', '[Download Not Found] FAILED: No not found names provided');
+            return $this->failValidationErrors('沒有未匹配的客戶');
+        }
+
+        try {
+            log_message('info', '[Download Not Found] Creating spreadsheet with ' . count($notFoundNames) . ' not found customers');
+
+            // Create new spreadsheet
+            $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+            $worksheet = $spreadsheet->getActiveSheet();
+
+            // Set headers (first row)
+            $columnIndex = 1;
+            foreach ($headers as $header) {
+                $worksheet->setCellValueByColumnAndRow($columnIndex, 1, $header);
+                // Style header row
+                $cell = $worksheet->getCellByColumnAndRow($columnIndex, 1);
+                $cell->getStyle()->getFont()->setBold(true);
+                $cell->getStyle()->getFill()
+                    ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+                    ->getStartColor()->setARGB('FFE0E0E0');
+                $columnIndex++;
+            }
+
+            // Add not found customer names (starting from row 2)
+            $rowIndex = 2;
+            foreach ($notFoundNames as $name) {
+                $worksheet->setCellValueByColumnAndRow(1, $rowIndex, $name);
+                $rowIndex++;
+            }
+
+            // Auto-size columns
+            foreach (range(1, count($headers)) as $col) {
+                $columnLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col);
+                $worksheet->getColumnDimension($columnLetter)->setAutoSize(true);
+            }
+
+            // Generate filename with timestamp
+            $filename = '未匹配客戶_' . date('YmdHis') . '.xlsx';
+
+            log_message('info', '[Download Not Found] Spreadsheet created successfully. Filename: ' . $filename);
+
+            // Set headers for download
+            header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            header('Content-Disposition: attachment;filename="' . $filename . '"');
+            header('Cache-Control: max-age=0');
+
+            // Write to output
+            $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+            $writer->save('php://output');
+
+            log_message('info', '[Download Not Found] ========== Download Completed Successfully ==========');
+            exit;
+        } catch (\Throwable $e) {
+            log_message('error', '[Download Not Found] Unexpected Error: ' . $e->getMessage());
+            log_message('error', '[Download Not Found] Exception class: ' . get_class($e));
+            log_message('error', '[Download Not Found] Stack trace: ' . $e->getTraceAsString());
+            return $this->fail('生成檔案出錯：' . $e->getMessage(), 400);
+        }
+    }
+
+    /**
      * Send message via LINE Messaging API
      */
     private function sendLineMessage(string $accessToken, string $lineUserId, string $message): array

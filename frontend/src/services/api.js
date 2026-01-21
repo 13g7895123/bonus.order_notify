@@ -152,6 +152,37 @@ export const api = {
                 body: formData
             });
             return res.json();
+        },
+        downloadNotFound: async (headers, notFoundNames) => {
+            const res = await fetchWithAuth(`${API_URL}/notifications/download-not-found`, {
+                method: 'POST',
+                body: JSON.stringify({ headers, not_found: notFoundNames })
+            });
+
+            if (!res.ok) {
+                throw new Error('下載失敗');
+            }
+
+            // Get filename from Content-Disposition header
+            const contentDisposition = res.headers.get('Content-Disposition');
+            let filename = '未匹配客戶.xlsx';
+            if (contentDisposition) {
+                const filenameMatch = contentDisposition.match(/filename="?(.+)"?/);
+                if (filenameMatch) {
+                    filename = filenameMatch[1];
+                }
+            }
+
+            // Download the file
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
         }
     },
     settings: {

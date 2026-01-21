@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../services/api';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
-import { Send, CheckCircle, AlertCircle, Upload, Users, Info, Settings, X, Eye, Search } from 'lucide-react';
+import { Send, CheckCircle, AlertCircle, Upload, Users, Info, Settings, X, Eye, Search, Download } from 'lucide-react';
 
 const SendNotification = () => {
     const [templates, setTemplates] = useState([]);
@@ -12,6 +12,7 @@ const SendNotification = () => {
     const [sending, setSending] = useState(false);
     const [result, setResult] = useState(null);
     const [uploading, setUploading] = useState(false);
+    const [downloading, setDownloading] = useState(false);
 
     // Import Data State
     const [importData, setImportData] = useState(null); // { headers: [], matched: [], not_found: [] }
@@ -204,6 +205,21 @@ const SendNotification = () => {
         } finally {
             setUploading(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
+    const handleDownloadNotFound = async () => {
+        if (!importData?.not_found || importData.not_found.length === 0) {
+            return;
+        }
+
+        setDownloading(true);
+        try {
+            await api.notifications.downloadNotFound(importData.headers, importData.not_found);
+        } catch (e) {
+            alert('下載失敗，請稍後再試');
+        } finally {
+            setDownloading(false);
         }
     };
 
@@ -536,8 +552,19 @@ const SendNotification = () => {
                                     </div>
                                     {importData.not_found?.length > 0 && (
                                         <div style={{ color: 'var(--danger)', marginTop: '8px' }}>
-                                            <div style={{ marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                <AlertCircle size={14} /> 找不到以下自定義名稱 (共 {importData.not_found.length} 筆)：
+                                            <div style={{ marginBottom: '6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    <AlertCircle size={14} /> 找不到以下自定義名稱 (共 {importData.not_found.length} 筆)：
+                                                </div>
+                                                <Button
+                                                    variant="secondary"
+                                                    size="sm"
+                                                    onClick={handleDownloadNotFound}
+                                                    disabled={downloading}
+                                                    style={{ fontSize: '0.75rem', padding: '4px 10px' }}
+                                                >
+                                                    <Download size={12} /> {downloading ? '下載中...' : '下載 Excel'}
+                                                </Button>
                                             </div>
                                             <div style={{
                                                 maxHeight: '100px',
