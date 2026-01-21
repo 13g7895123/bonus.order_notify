@@ -1,8 +1,7 @@
 import React from 'react';
 
-const Button = ({ children, variant = 'primary', onClick, style, ...props }) => {
+const Button = ({ children, variant = 'primary', size = 'md', onClick, style, ...props }) => {
     const baseStyle = {
-        padding: '10px 20px',
         borderRadius: '8px',
         fontWeight: '600',
         transition: 'all 0.2s',
@@ -11,6 +10,21 @@ const Button = ({ children, variant = 'primary', onClick, style, ...props }) => 
         justifyContent: 'center',
         gap: '8px',
         cursor: 'pointer'
+    };
+
+    const sizes = {
+        sm: {
+            padding: '6px 12px',
+            fontSize: '0.875rem'
+        },
+        md: {
+            padding: '10px 20px',
+            fontSize: '1rem'
+        },
+        lg: {
+            padding: '14px 28px',
+            fontSize: '1.125rem'
+        }
     };
 
     const variants = {
@@ -34,7 +48,7 @@ const Button = ({ children, variant = 'primary', onClick, style, ...props }) => 
     return (
         <button
             onClick={onClick}
-            style={{ ...baseStyle, ...variants[variant], ...style }}
+            style={{ ...baseStyle, ...sizes[size], ...variants[variant], ...style }}
             onMouseOver={(e) => {
                 if (variant === 'primary') e.currentTarget.style.backgroundColor = 'var(--accent-hover)';
             }}
