@@ -267,8 +267,16 @@ class Notifications extends ResourceController
 
         $json = $this->request->getJSON();
 
-        if (!$json || !isset($json->headers) || !isset($json->not_found)) {
-            log_message('error', '[Download Not Found] FAILED: Missing required data');
+        // Log the received data for debugging
+        log_message('debug', '[Download Not Found] Received JSON: ' . json_encode($json, JSON_UNESCAPED_UNICODE));
+
+        if (!$json) {
+            log_message('error', '[Download Not Found] FAILED: No JSON data received');
+            return $this->failValidationErrors('未收到資料');
+        }
+
+        if (!isset($json->headers) || !isset($json->not_found)) {
+            log_message('error', '[Download Not Found] FAILED: Missing required data. Headers: ' . (isset($json->headers) ? 'OK' : 'MISSING') . ', NotFound: ' . (isset($json->not_found) ? 'OK' : 'MISSING'));
             return $this->failValidationErrors('缺少必要資料');
         }
 
