@@ -167,9 +167,16 @@ export const api = {
             const contentDisposition = res.headers.get('Content-Disposition');
             let filename = '未匹配客戶.xlsx';
             if (contentDisposition) {
-                const filenameMatch = contentDisposition.match(/filename="?(.+)"?/);
+                // Support both filename= and filename*=UTF-8'' format
+                const filenameMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i)
+                    || contentDisposition.match(/filename="?([^";]+)"?/i);
                 if (filenameMatch) {
-                    filename = filenameMatch[1];
+                    // filenameMatch[1] contains the actual filename, maybe URL encoded
+                    try {
+                        filename = decodeURIComponent(filenameMatch[1]);
+                    } catch (e) {
+                        filename = filenameMatch[1];
+                    }
                 }
             }
 

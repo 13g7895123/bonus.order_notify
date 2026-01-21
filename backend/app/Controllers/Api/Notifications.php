@@ -328,13 +328,16 @@ class Notifications extends ResourceController
 
             // Generate filename with timestamp
             $filename = '未匹配客戶_' . date('YmdHis') . '.xlsx';
+            $encodedFilename = rawurlencode($filename);
 
             log_message('info', '[Download Not Found] Spreadsheet created successfully. Filename: ' . $filename);
 
             // Set headers for download
             header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-            header('Content-Disposition: attachment;filename="' . $filename . '"');
+            // Use both filename (fallback) and filename* (UTF-8 support)
+            header('Content-Disposition: attachment; filename="' . $encodedFilename . '"; filename*=UTF-8\'\'' . $encodedFilename);
             header('Cache-Control: max-age=0');
+            header('Access-Control-Expose-Headers: Content-Disposition'); // Ensure frontend can read this header
 
             // Write to output
             $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
