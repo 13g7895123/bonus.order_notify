@@ -200,7 +200,12 @@ export const api = {
         list: async () => (await fetchWithAuth(`${API_URL}/messages`)).json()
     },
     line: {
-        getUsers: async () => (await fetchWithAuth(`${API_URL}/line/users`)).json()
+        getUsers: async () => (await fetchWithAuth(`${API_URL}/line/users`)).json(),
+        getWebhookLogs: async (params = {}) => {
+            const query = new URLSearchParams(params).toString();
+            return (await fetchWithAuth(`${API_URL}/line/webhook-logs/database${query ? '?' + query : ''}`)).json();
+        },
+        getWebhookStats: async () => (await fetchWithAuth(`${API_URL}/line/webhook-logs/stats`)).json()
     },
     stats: {
         get: async () => (await fetchWithAuth(`${API_URL}/stats`)).json()

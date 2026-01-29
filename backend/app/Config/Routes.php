@@ -46,7 +46,9 @@ $routes->group('api', ['namespace' => 'App\Controllers\Api'], function ($routes)
     // LINE Webhook & Users
     $routes->post('line/webhook', 'LineWebhook::receive');
     $routes->get('line/users', 'LineWebhook::listUsers');
-    $routes->get('line/webhook-logs', 'LineWebhook::debugLogs');
+    $routes->get('line/webhook-logs', 'LineWebhook::debugLogs'); // Legacy
+    $routes->get('line/webhook-logs/database', 'LineWebhook::getWebhookLogs'); // New
+    $routes->get('line/webhook-logs/stats', 'LineWebhook::getWebhookStats'); // New
 
     // Dashboard Stats
     $routes->get('stats', 'Stats::index');

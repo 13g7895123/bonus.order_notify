@@ -13,6 +13,7 @@ import UserManagement from './pages/UserManagement';
 import UserApplications from './pages/UserApplications';
 import InviteUsers from './pages/InviteUsers';
 import ActivityLogs from './pages/ActivityLogs';
+import WebhookLogs from './pages/WebhookLogs';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 const ProtectedRoute = ({ children }) => {
@@ -45,6 +46,7 @@ function AppRoutes() {
       <Route path="/users" element={<ProtectedRoute><UserManagement /></ProtectedRoute>} />
       <Route path="/applications" element={<ProtectedRoute><UserApplications /></ProtectedRoute>} />
       <Route path="/activity-logs" element={<ProtectedRoute><ActivityLogs /></ProtectedRoute>} />
+      <Route path="/webhook-logs" element={<ProtectedRoute><WebhookLogs /></ProtectedRoute>} />
     </Routes>
   );
 }

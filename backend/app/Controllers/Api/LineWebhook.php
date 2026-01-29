@@ -18,13 +18,22 @@ class LineWebhook extends ResourceController
      */
     public function receive()
     {
+        $startTime = microtime(true);
         $db = \Config\Database::connect();
+        
+        $logData = [
+            'request_method' => $this->request->getMethod(),
+            'ip_address' => $this->request->getIPAddress(),
+            'user_agent' => $this->request->getUserAgent(),
+            'created_at' => date('Y-m-d H:i:s'),
+        ];
 
         // Log request start
-        log_message('info', '[LINE Webhook] Request received');
+        log_message('info', '[LINE Webhook] Request received from ' . $logData['ip_address']);
 
         // Get webhook key from query parameter
         $webhookKey = $this->request->getGet('key');
+        $logData['webhook_key'] = $webhookKey;
         $user = null;
 
         if ($webhookKey) {
@@ -43,12 +52,22 @@ class LineWebhook extends ResourceController
                 $anyUser = $db->table('users')->where('webhook_key', $webhookKey)->get()->getRowArray();
                 if ($anyUser) {
                     log_message('error', '[LINE Webhook] User found but is_active = ' . ($anyUser['is_active'] ?? 'NULL') . ' for key: ' . $webhookKey);
+                    $logData['error_message'] = 'User account is inactive (is_active=' . ($anyUser['is_active'] ?? 'NULL') . ')';
                 } else {
                     log_message('error', '[LINE Webhook] No user found with webhook key: ' . $webhookKey);
+                    $logData['error_message'] = 'Invalid webhook key - no user found';
                 }
+                
+                // Record the failed request
+                $logData['response_status'] = 401;
+                $logData['response_body'] = json_encode(['message' => $logData['error_message']]);
+                $logData['processing_time_ms'] = (int)((microtime(true) - $startTime) * 1000);
+                $db->table('webhook_logs')->insert($logData);
+                
                 return $this->failUnauthorized('Invalid webhook key');
             }
             log_message('info', '[LINE Webhook] User identified: ' . $user['username'] . ' (ID: ' . $user['id'] . ')');
+            $logData['user_id'] = $user['id'];
             $channelSecret = $user['line_channel_secret'] ?? '';
         } else {
             // Legacy mode: use global settings (for backward compatibility)
@@ -57,36 +76,73 @@ class LineWebhook extends ResourceController
             $channelSecret = $channelSecretRow['value'] ?? '';
             // Try to get admin user as fallback
             $user = $db->table('users')->where('role', 'admin')->get()->getRowArray();
+            if ($user) {
+                $logData['user_id'] = $user['id'];
+            }
         }
 
         // Get request body - use CodeIgniter's request body (can be read multiple times)
         $body = $this->request->getBody();
+        $logData['request_body'] = $body;
+        
+        // Capture request headers
+        $headers = [];
+        foreach ($this->request->getHeaders() as $key => $value) {
+            $headers[$key] = $value->getValue();
+        }
+        $logData['request_headers'] = json_encode($headers);
 
         // Detailed Logging of Headers and Body
-        log_message('debug', '[LINE Webhook] Headers: ' . json_encode($this->request->getHeaders()));
+        log_message('debug', '[LINE Webhook] Headers: ' . json_encode($headers));
         log_message('debug', '[LINE Webhook] Body: ' . $body);
 
         // Verify signature
         $signature = $this->request->getHeaderLine('X-Line-Signature');
+        $logData['signature'] = $signature;
+        $signatureValid = null;
+        
         if ($channelSecret && $signature) {
             $hash = base64_encode(hash_hmac('sha256', $body, $channelSecret, true));
             if ($hash !== $signature) {
                 log_message('error', '[LINE Webhook] Signature verification failed. Expected: ' . $hash . ', Received: ' . $signature);
+                $signatureValid = 0;
+                $logData['signature_valid'] = 0;
+                $logData['error_message'] = 'Signature verification failed';
+                $logData['response_status'] = 401;
+                $logData['response_body'] = json_encode(['message' => 'Invalid signature']);
+                $logData['processing_time_ms'] = (int)((microtime(true) - $startTime) * 1000);
+                $db->table('webhook_logs')->insert($logData);
+                
                 return $this->failUnauthorized('Invalid signature');
             }
             log_message('info', '[LINE Webhook] Signature verified');
+            $signatureValid = 1;
+            $logData['signature_valid'] = 1;
         } else {
             log_message('warning', '[LINE Webhook] Skipping signature verification (Missing secret or signature header)');
+            $logData['signature_valid'] = null; // Skipped
         }
 
         $events = json_decode($body, true);
-
-        if (!$events || !isset($events['events'])) {
-            log_message('info', '[LINE Webhook] No events found in request');
-            return $this->respond(['status' => 'ok']);
+        
+        // Handle LINE test requests (usually empty events array or no events key)
+        $isTestRequest = false;
+        if (!$events || !isset($events['events']) || empty($events['events'])) {
+            log_message('info', '[LINE Webhook] Test request or no events found - responding with 200 OK');
+            $isTestRequest = true;
+            $logData['is_test_request'] = 1;
+            $logData['events_count'] = 0;
+            $logData['response_status'] = 200;
+            $logData['response_body'] = json_encode(['status' => 'ok', 'message' => 'Webhook is working']);
+            $logData['processing_time_ms'] = (int)((microtime(true) - $startTime) * 1000);
+            $db->table('webhook_logs')->insert($logData);
+            
+            return $this->respond(['status' => 'ok', 'message' => 'Webhook is working']);
         }
 
         log_message('info', '[LINE Webhook] Processing ' . count($events['events']) . ' events');
+        $logData['events_count'] = count($events['events']);
+        $eventTypes = [];
 
         // Get user_id for multi-tenant support
         $ownerId = $user['id'] ?? null;
@@ -96,6 +152,7 @@ class LineWebhook extends ResourceController
 
             $userId = $event['source']['userId'] ?? null;
             $eventType = $event['type'] ?? '';
+            $eventTypes[] = $eventType;
 
             if ($userId) {
                 // Check if line_user already exists for this owner
@@ -176,12 +233,19 @@ class LineWebhook extends ResourceController
                 log_message('warning', "[LINE Webhook] Event #{$index} missing userId source");
             }
         }
+        
+        // Record successful webhook processing
+        $logData['event_types'] = implode(',', array_unique($eventTypes));
+        $logData['response_status'] = 200;
+        $logData['response_body'] = json_encode(['status' => 'ok']);
+        $logData['processing_time_ms'] = (int)((microtime(true) - $startTime) * 1000);
+        $db->table('webhook_logs')->insert($logData);
 
         return $this->respond(['status' => 'ok']);
     }
 
     /**
-     * Get recent logs for LINE webhook
+     * Get recent logs for LINE webhook (legacy - kept for compatibility)
      */
     public function debugLogs()
     {
@@ -202,6 +266,131 @@ class LineWebhook extends ResourceController
             'file' => basename($logFile),
             'logs' => array_values(array_slice(array_reverse($filtered), 0, 100))
         ]);
+    }
+
+    /**
+     * Get webhook logs from database (Admin only)
+     * Supports filtering by user_id, date range, status
+     */
+    public function getWebhookLogs()
+    {
+        $currentUser = $this->getCurrentUser();
+        if (!$currentUser || $currentUser['role'] !== 'admin') {
+            return $this->failForbidden('只有管理員可以存取');
+        }
+
+        $db = \Config\Database::connect();
+        
+        // Parse query parameters
+        $userId = $this->request->getGet('user_id');
+        $startDate = $this->request->getGet('start_date');
+        $endDate = $this->request->getGet('end_date');
+        $status = $this->request->getGet('status'); // 'success', 'error', 'test'
+        $page = (int)($this->request->getGet('page') ?? 1);
+        $limit = (int)($this->request->getGet('limit') ?? 50);
+        $offset = ($page - 1) * $limit;
+
+        // Build query
+        $builder = $db->table('webhook_logs')
+            ->select('webhook_logs.*, users.username, users.name as user_name')
+            ->join('users', 'users.id = webhook_logs.user_id', 'left')
+            ->orderBy('webhook_logs.created_at', 'DESC');
+
+        // Apply filters
+        if ($userId) {
+            $builder->where('webhook_logs.user_id', $userId);
+        }
+        
+        if ($startDate) {
+            $builder->where('webhook_logs.created_at >=', $startDate . ' 00:00:00');
+        }
+        
+        if ($endDate) {
+            $builder->where('webhook_logs.created_at <=', $endDate . ' 23:59:59');
+        }
+        
+        if ($status === 'success') {
+            $builder->where('webhook_logs.response_status', 200);
+        } elseif ($status === 'error') {
+            $builder->whereIn('webhook_logs.response_status', [401, 403, 500]);
+        } elseif ($status === 'test') {
+            $builder->where('webhook_logs.is_test_request', 1);
+        }
+
+        // Get total count
+        $totalQuery = clone $builder;
+        $total = $totalQuery->countAllResults(false);
+
+        // Get paginated results
+        $logs = $builder->limit($limit, $offset)->get()->getResultArray();
+
+        // Parse JSON fields for display
+        foreach ($logs as &$log) {
+            if ($log['request_headers']) {
+                $log['request_headers'] = json_decode($log['request_headers'], true);
+            }
+            if ($log['response_body']) {
+                $log['response_body'] = json_decode($log['response_body'], true);
+            }
+        }
+
+        return $this->respond([
+            'data' => $logs,
+            'pagination' => [
+                'total' => $total,
+                'page' => $page,
+                'limit' => $limit,
+                'pages' => ceil($total / $limit)
+            ]
+        ]);
+    }
+
+    /**
+     * Get webhook log statistics (Admin only)
+     */
+    public function getWebhookStats()
+    {
+        $currentUser = $this->getCurrentUser();
+        if (!$currentUser || $currentUser['role'] !== 'admin') {
+            return $this->failForbidden('只有管理員可以存取');
+        }
+
+        $db = \Config\Database::connect();
+        
+        // Get stats for last 7 days
+        $stats = [
+            'total_requests' => $db->table('webhook_logs')->countAllResults(),
+            'successful_requests' => $db->table('webhook_logs')->where('response_status', 200)->countAllResults(),
+            'failed_requests' => $db->table('webhook_logs')->whereIn('response_status', [401, 403, 500])->countAllResults(),
+            'test_requests' => $db->table('webhook_logs')->where('is_test_request', 1)->countAllResults(),
+            'last_7_days' => [],
+        ];
+
+        // Daily stats for last 7 days
+        for ($i = 6; $i >= 0; $i--) {
+            $date = date('Y-m-d', strtotime("-{$i} days"));
+            $dayStats = [
+                'date' => $date,
+                'total' => $db->table('webhook_logs')
+                    ->where('DATE(created_at)', $date)
+                    ->countAllResults(),
+                'success' => $db->table('webhook_logs')
+                    ->where('DATE(created_at)', $date)
+                    ->where('response_status', 200)
+                    ->countAllResults(),
+                'failed' => $db->table('webhook_logs')
+                    ->where('DATE(created_at)', $date)
+                    ->whereIn('response_status', [401, 403, 500])
+                    ->countAllResults(),
+            ];
+            $stats['last_7_days'][] = $dayStats;
+        }
+
+        // Average processing time
+        $avgTime = $db->query("SELECT AVG(processing_time_ms) as avg_time FROM webhook_logs WHERE processing_time_ms IS NOT NULL")->getRowArray();
+        $stats['avg_processing_time_ms'] = (int)($avgTime['avg_time'] ?? 0);
+
+        return $this->respond($stats);
     }
 
     /**
