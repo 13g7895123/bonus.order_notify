@@ -205,7 +205,8 @@ export const api = {
             const query = new URLSearchParams(params).toString();
             return (await fetchWithAuth(`${API_URL}/line/webhook-logs/database${query ? '?' + query : ''}`)).json();
         },
-        getWebhookStats: async () => (await fetchWithAuth(`${API_URL}/line/webhook-logs/stats`)).json()
+        getWebhookStats: async () => (await fetchWithAuth(`${API_URL}/line/webhook-logs/stats`)).json(),
+        testWebhook: async (userId) => (await fetchWithAuth(`${API_URL}/line/webhook/test/${userId}`, { method: 'POST' })).json()
     },
     stats: {
         get: async () => (await fetchWithAuth(`${API_URL}/stats`)).json()

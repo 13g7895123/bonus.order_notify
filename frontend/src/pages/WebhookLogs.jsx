@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AlertCircle, CheckCircle, Clock, Filter, RefreshCw, Search, X, ChevronLeft, ChevronRight, Eye, Activity } from 'lucide-react';
+import { AlertCircle, CheckCircle, Clock, Filter, RefreshCw, Search, X, ChevronLeft, ChevronRight, Eye, Activity, Zap, Info, AlertTriangle } from 'lucide-react';
 import { api } from '../services/api';
 
 const WebhookLogs = () => {
@@ -7,6 +7,12 @@ const WebhookLogs = () => {
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
     const [selectedLog, setSelectedLog] = useState(null);
+    
+    // Webhook test states
+    const [showTestModal, setShowTestModal] = useState(false);
+    const [testLoading, setTestLoading] = useState(false);
+    const [testResult, setTestResult] = useState(null);
+    const [selectedUserId, setSelectedUserId] = useState('');
     
     // Filter states
     const [filters, setFilters] = useState({
@@ -78,6 +84,59 @@ const WebhookLogs = () => {
         setTimeout(loadLogs, 0);
     };
 
+    const handleTestWebhook = async () => {
+        if (!selectedUserId) {
+            alert('請選擇要測試的使用者');
+            return;
+        }
+
+        setTestLoading(true);
+        setTestResult(null);
+        
+        try {
+            const result = await api.line.testWebhook(selectedUserId);
+            setTestResult(result);
+        } catch (error) {
+            console.error('Webhook test failed', error);
+            setTestResult({
+                overall_status: 'error',
+                user: { username: '錯誤', name: '測試失敗' },
+                tests: {
+                    error: {
+                        name: '連線錯誤',
+                        status: 'error',
+                        message: '無法連線到伺服器: ' + error.message
+                    }
+                }
+            });
+        }
+        
+        setTestLoading(false);
+    };
+
+    const getStatusIcon = (status) => {
+        switch (status) {
+            case 'success':
+                return <CheckCircle size={18} style={{ color: 'var(--success)' }} />;
+            case 'error':
+                return <AlertCircle size={18} style={{ color: 'var(--danger)' }} />;
+            case 'warning':
+                return <AlertTriangle size={18} style={{ color: '#f59e0b' }} />;
+            case 'info':
+            default:
+                return <Info size={18} style={{ color: 'var(--text-secondary)' }} />;
+        }
+    };
+
+    const getStatusColor = (status) => {
+        switch (status) {
+            case 'success': return 'var(--success)';
+            case 'error': return 'var(--danger)';
+            case 'warning': return '#f59e0b';
+            default: return 'var(--text-secondary)';
+        }
+    };
+
     const getStatusBadge = (status) => {
         if (status === 200) {
             return <span style={{ 
@@ -135,24 +194,44 @@ const WebhookLogs = () => {
                     </h1>
                     <p style={{ color: 'var(--text-secondary)' }}>查看所有 LINE Webhook 請求的詳細記錄</p>
                 </div>
-                <button 
-                    onClick={() => { loadLogs(); loadStats(); }}
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        padding: '0.75rem 1.5rem',
-                        backgroundColor: 'var(--accent-primary)',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '8px',
-                        cursor: 'pointer',
-                        fontWeight: '500'
-                    }}
-                >
-                    <RefreshCw size={18} />
-                    重新整理
-                </button>
+                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                    <button 
+                        onClick={() => setShowTestModal(true)}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            padding: '0.75rem 1.5rem',
+                            backgroundColor: '#10b981',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            fontWeight: '500'
+                        }}
+                    >
+                        <Zap size={18} />
+                        測試 Webhook
+                    </button>
+                    <button 
+                        onClick={() => { loadLogs(); loadStats(); }}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            padding: '0.75rem 1.5rem',
+                            backgroundColor: 'var(--accent-primary)',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            fontWeight: '500'
+                        }}
+                    >
+                        <RefreshCw size={18} />
+                        重新整理
+                    </button>
+                </div>
             </div>
 
             {/* Stats Cards */}
@@ -673,6 +752,303 @@ const WebhookLogs = () => {
                             >
                                 關閉
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Webhook Test Modal */}
+            {showTestModal && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 1000,
+                    padding: '2rem'
+                }}>
+                    <div style={{
+                        backgroundColor: 'var(--bg-primary)',
+                        borderRadius: '12px',
+                        width: '100%',
+                        maxWidth: '700px',
+                        maxHeight: '90vh',
+                        overflow: 'auto',
+                        position: 'relative'
+                    }}>
+                        {/* Header */}
+                        <div style={{
+                            padding: '1.5rem',
+                            borderBottom: '1px solid var(--border-color)',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            position: 'sticky',
+                            top: 0,
+                            backgroundColor: 'var(--bg-primary)',
+                            zIndex: 1
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                <Zap size={24} style={{ color: '#10b981' }} />
+                                <div>
+                                    <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>
+                                        Webhook 連通性測試
+                                    </h2>
+                                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '4px' }}>
+                                        模擬 LINE 伺服器發送測試請求
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setShowTestModal(false);
+                                    setTestResult(null);
+                                    setSelectedUserId('');
+                                }}
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'var(--text-secondary)',
+                                    cursor: 'pointer',
+                                    padding: '8px'
+                                }}
+                            >
+                                <X size={24} />
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div style={{ padding: '1.5rem' }}>
+                            {!testResult ? (
+                                <>
+                                    <div style={{ marginBottom: '1.5rem' }}>
+                                        <label style={{ 
+                                            display: 'block', 
+                                            marginBottom: '0.5rem', 
+                                            fontSize: '0.9rem',
+                                            fontWeight: '500'
+                                        }}>
+                                            選擇要測試的使用者
+                                        </label>
+                                        <select
+                                            value={selectedUserId}
+                                            onChange={(e) => setSelectedUserId(e.target.value)}
+                                            style={{
+                                                width: '100%',
+                                                padding: '0.75rem',
+                                                borderRadius: '6px',
+                                                border: '1px solid var(--border-color)',
+                                                backgroundColor: 'var(--bg-secondary)',
+                                                color: 'var(--text-primary)',
+                                                fontSize: '0.9rem'
+                                            }}
+                                        >
+                                            <option value="">-- 請選擇使用者 --</option>
+                                            {users.map(user => (
+                                                <option key={user.id} value={user.id}>
+                                                    {user.name} (@{user.username})
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div style={{
+                                        padding: '1rem',
+                                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                        borderRadius: '8px',
+                                        border: '1px solid rgba(59, 130, 246, 0.3)',
+                                        marginBottom: '1.5rem'
+                                    }}>
+                                        <div style={{ 
+                                            display: 'flex', 
+                                            alignItems: 'flex-start', 
+                                            gap: '0.75rem',
+                                            fontSize: '0.85rem',
+                                            color: 'var(--text-secondary)'
+                                        }}>
+                                            <Info size={18} style={{ color: '#3b82f6', flexShrink: 0, marginTop: '2px' }} />
+                                            <div>
+                                                <div style={{ fontWeight: '600', color: '#3b82f6', marginBottom: '0.5rem' }}>
+                                                    測試說明
+                                                </div>
+                                                <ul style={{ margin: '0', paddingLeft: '1.25rem', lineHeight: '1.6' }}>
+                                                    <li>檢查帳號狀態和 Webhook Key 設定</li>
+                                                    <li>驗證 Channel Secret 配置</li>
+                                                    <li>模擬 LINE 發送測試請求到 Webhook URL</li>
+                                                    <li>檢查簽章驗證和請求記錄功能</li>
+                                                    <li>測試結果會顯示詳細的診斷資訊</li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        onClick={handleTestWebhook}
+                                        disabled={!selectedUserId || testLoading}
+                                        style={{
+                                            width: '100%',
+                                            padding: '0.75rem',
+                                            backgroundColor: selectedUserId && !testLoading ? '#10b981' : 'var(--bg-secondary)',
+                                            color: selectedUserId && !testLoading ? 'white' : 'var(--text-secondary)',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            cursor: selectedUserId && !testLoading ? 'pointer' : 'not-allowed',
+                                            fontSize: '1rem',
+                                            fontWeight: '500',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '0.5rem'
+                                        }}
+                                    >
+                                        {testLoading ? (
+                                            <>
+                                                <RefreshCw size={18} style={{ animation: 'spin 1s linear infinite' }} />
+                                                測試中...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Zap size={18} />
+                                                開始測試
+                                            </>
+                                        )}
+                                    </button>
+                                </>
+                            ) : (
+                                <>
+                                    {/* Overall Status */}
+                                    <div style={{
+                                        padding: '1rem',
+                                        marginBottom: '1.5rem',
+                                        borderRadius: '8px',
+                                        backgroundColor: testResult.overall_status === 'success' 
+                                            ? 'rgba(16, 185, 129, 0.1)' 
+                                            : testResult.overall_status === 'warning'
+                                            ? 'rgba(245, 158, 11, 0.1)'
+                                            : 'rgba(239, 68, 68, 0.1)',
+                                        border: `1px solid ${
+                                            testResult.overall_status === 'success' 
+                                                ? 'rgba(16, 185, 129, 0.3)' 
+                                                : testResult.overall_status === 'warning'
+                                                ? 'rgba(245, 158, 11, 0.3)'
+                                                : 'rgba(239, 68, 68, 0.3)'
+                                        }`,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.75rem'
+                                    }}>
+                                        {getStatusIcon(testResult.overall_status)}
+                                        <div>
+                                            <div style={{ fontWeight: '600', color: getStatusColor(testResult.overall_status) }}>
+                                                {testResult.overall_status === 'success' 
+                                                    ? '✅ 所有測試通過' 
+                                                    : testResult.overall_status === 'warning'
+                                                    ? '⚠️ 部分項目需要注意'
+                                                    : '❌ 發現問題'}
+                                            </div>
+                                            <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                                                使用者: {testResult.user?.name} (@{testResult.user?.username})
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Test Results */}
+                                    <div style={{ display: 'grid', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                                        {testResult.tests && Object.entries(testResult.tests).map(([key, test]) => (
+                                            <div key={key} style={{
+                                                padding: '1rem',
+                                                backgroundColor: 'var(--bg-secondary)',
+                                                borderRadius: '8px',
+                                                border: '1px solid var(--border-color)'
+                                            }}>
+                                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                                                    {getStatusIcon(test.status)}
+                                                    <div style={{ flex: 1 }}>
+                                                        <div style={{ fontWeight: '600', marginBottom: '4px' }}>
+                                                            {test.name}
+                                                        </div>
+                                                        <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                                                            {test.message}
+                                                        </div>
+                                                        {test.details && (
+                                                            <details style={{ marginTop: '0.75rem' }}>
+                                                                <summary style={{ 
+                                                                    cursor: 'pointer', 
+                                                                    fontSize: '0.85rem',
+                                                                    color: 'var(--accent-primary)',
+                                                                    userSelect: 'none'
+                                                                }}>
+                                                                    查看詳細資訊
+                                                                </summary>
+                                                                <pre style={{
+                                                                    marginTop: '0.5rem',
+                                                                    padding: '0.75rem',
+                                                                    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                                                                    borderRadius: '6px',
+                                                                    fontSize: '0.75rem',
+                                                                    overflow: 'auto',
+                                                                    maxHeight: '200px'
+                                                                }}>
+                                                                    {JSON.stringify(test.details, null, 2)}
+                                                                </pre>
+                                                            </details>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <div style={{ display: 'flex', gap: '0.75rem' }}>
+                                        <button
+                                            onClick={() => {
+                                                setTestResult(null);
+                                                setSelectedUserId('');
+                                            }}
+                                            style={{
+                                                flex: 1,
+                                                padding: '0.75rem',
+                                                backgroundColor: 'var(--bg-secondary)',
+                                                color: 'var(--text-primary)',
+                                                border: '1px solid var(--border-color)',
+                                                borderRadius: '8px',
+                                                cursor: 'pointer',
+                                                fontWeight: '500'
+                                            }}
+                                        >
+                                            重新測試
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                loadLogs();
+                                                loadStats();
+                                            }}
+                                            style={{
+                                                flex: 1,
+                                                padding: '0.75rem',
+                                                backgroundColor: 'var(--accent-primary)',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '8px',
+                                                cursor: 'pointer',
+                                                fontWeight: '500',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: '0.5rem'
+                                            }}
+                                        >
+                                            <RefreshCw size={16} />
+                                            更新記錄
+                                        </button>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>

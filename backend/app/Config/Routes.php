@@ -49,6 +49,7 @@ $routes->group('api', ['namespace' => 'App\Controllers\Api'], function ($routes)
     $routes->get('line/webhook-logs', 'LineWebhook::debugLogs'); // Legacy
     $routes->get('line/webhook-logs/database', 'LineWebhook::getWebhookLogs'); // New
     $routes->get('line/webhook-logs/stats', 'LineWebhook::getWebhookStats'); // New
+    $routes->post('line/webhook/test/(:num)', 'LineWebhook::testWebhook/$1'); // Test webhook connectivity
 
     // Dashboard Stats
     $routes->get('stats', 'Stats::index');

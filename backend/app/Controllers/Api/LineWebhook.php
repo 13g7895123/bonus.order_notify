@@ -456,4 +456,227 @@ class LineWebhook extends ResourceController
 
         return json_decode($response, true) ?? [];
     }
+
+    /**
+     * Test webhook connectivity for a specific user
+     * This simulates a LINE webhook request to test the configuration
+     */
+    public function testWebhook($id = null)
+    {
+        $currentUser = $this->getCurrentUser();
+        if (!$currentUser || $currentUser['role'] !== 'admin') {
+            return $this->failForbidden('只有管理員可以存取');
+        }
+
+        if (!$id) {
+            return $this->failNotFound('請指定使用者 ID');
+        }
+
+        $db = \Config\Database::connect();
+
+        // Get user
+        $user = $db->table('users')
+            ->where('id', $id)
+            ->get()
+            ->getRowArray();
+
+        if (!$user) {
+            return $this->failNotFound('使用者不存在');
+        }
+
+        $result = [
+            'user' => [
+                'id' => $user['id'],
+                'username' => $user['username'],
+                'name' => $user['name'],
+                'is_active' => (bool)$user['is_active']
+            ],
+            'tests' => [],
+            'overall_status' => 'success'
+        ];
+
+        // Test 1: Check if user is active
+        if (!$user['is_active']) {
+            $result['tests']['user_active'] = [
+                'name' => '帳號狀態檢查',
+                'status' => 'error',
+                'message' => '帳號已停用，Webhook 將會被拒絕'
+            ];
+            $result['overall_status'] = 'error';
+        } else {
+            $result['tests']['user_active'] = [
+                'name' => '帳號狀態檢查',
+                'status' => 'success',
+                'message' => '帳號已啟用'
+            ];
+        }
+
+        // Test 2: Check webhook key
+        if (empty($user['webhook_key'])) {
+            $result['tests']['webhook_key'] = [
+                'name' => 'Webhook Key 檢查',
+                'status' => 'error',
+                'message' => 'Webhook Key 未設定'
+            ];
+            $result['overall_status'] = 'error';
+            return $this->respond($result); // Can't proceed without webhook key
+        } else {
+            $result['tests']['webhook_key'] = [
+                'name' => 'Webhook Key 檢查',
+                'status' => 'success',
+                'message' => 'Webhook Key 已設定 (' . strlen($user['webhook_key']) . ' 字元)',
+                'webhook_key' => substr($user['webhook_key'], 0, 8) . '...' // Show first 8 chars only
+            ];
+        }
+
+        // Test 3: Check channel secret
+        $hasChannelSecret = !empty($user['line_channel_secret']);
+        if (!$hasChannelSecret) {
+            $result['tests']['channel_secret'] = [
+                'name' => 'Channel Secret 檢查',
+                'status' => 'warning',
+                'message' => 'Channel Secret 未設定，簽章驗證將被跳過'
+            ];
+            if ($result['overall_status'] === 'success') {
+                $result['overall_status'] = 'warning';
+            }
+        } else {
+            $result['tests']['channel_secret'] = [
+                'name' => 'Channel Secret 檢查',
+                'status' => 'success',
+                'message' => 'Channel Secret 已設定 (' . strlen($user['line_channel_secret']) . ' 字元)'
+            ];
+        }
+
+        // Test 4: Simulate webhook request
+        $webhookUrl = base_url("/api/line/webhook?key=" . $user['webhook_key']);
+        $testPayload = json_encode([
+            'destination' => 'Uxxxxxxxxxxxxx',
+            'events' => []
+        ]);
+
+        // Calculate signature
+        $signature = '';
+        if ($hasChannelSecret) {
+            $signature = base64_encode(hash_hmac('sha256', $testPayload, $user['line_channel_secret'], true));
+        }
+
+        // Make the webhook request
+        $ch = curl_init($webhookUrl);
+        $headers = [
+            'Content-Type: application/json',
+            'User-Agent: LineBotWebhook/2.0'
+        ];
+        if ($signature) {
+            $headers[] = 'X-Line-Signature: ' . $signature;
+        }
+
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $testPayload);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); // For local testing
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+
+        $startTime = microtime(true);
+        $response = curl_exec($ch);
+        $processingTime = (int)((microtime(true) - $startTime) * 1000);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($curlError) {
+            $result['tests']['webhook_request'] = [
+                'name' => 'Webhook 請求測試',
+                'status' => 'error',
+                'message' => 'Webhook 請求失敗: ' . $curlError,
+                'details' => [
+                    'url' => $webhookUrl,
+                    'error' => $curlError
+                ]
+            ];
+            $result['overall_status'] = 'error';
+        } elseif ($httpCode === 200) {
+            $responseData = json_decode($response, true);
+            $result['tests']['webhook_request'] = [
+                'name' => 'Webhook 請求測試',
+                'status' => 'success',
+                'message' => 'Webhook 回應成功 (HTTP 200)',
+                'details' => [
+                    'url' => $webhookUrl,
+                    'http_code' => $httpCode,
+                    'processing_time_ms' => $processingTime,
+                    'response' => $responseData
+                ]
+            ];
+        } elseif ($httpCode === 401) {
+            $result['tests']['webhook_request'] = [
+                'name' => 'Webhook 請求測試',
+                'status' => 'error',
+                'message' => 'Webhook 驗證失敗 (HTTP 401) - 可能是 Key 或簽章錯誤',
+                'details' => [
+                    'url' => $webhookUrl,
+                    'http_code' => $httpCode,
+                    'response' => $response
+                ]
+            ];
+            $result['overall_status'] = 'error';
+        } else {
+            $result['tests']['webhook_request'] = [
+                'name' => 'Webhook 請求測試',
+                'status' => 'error',
+                'message' => "Webhook 回應異常 (HTTP {$httpCode})",
+                'details' => [
+                    'url' => $webhookUrl,
+                    'http_code' => $httpCode,
+                    'response' => $response
+                ]
+            ];
+            $result['overall_status'] = 'error';
+        }
+
+        // Test 5: Check if test request was logged
+        $latestLog = $db->table('webhook_logs')
+            ->where('user_id', $user['id'])
+            ->where('is_test_request', 1)
+            ->orderBy('created_at', 'DESC')
+            ->limit(1)
+            ->get()
+            ->getRowArray();
+
+        if ($latestLog) {
+            $timeDiff = time() - strtotime($latestLog['created_at']);
+            if ($timeDiff < 10) { // Within last 10 seconds
+                $result['tests']['webhook_logging'] = [
+                    'name' => 'Webhook 記錄檢查',
+                    'status' => 'success',
+                    'message' => '測試請求已成功記錄到資料庫',
+                    'details' => [
+                        'log_id' => $latestLog['id'],
+                        'response_status' => $latestLog['response_status'],
+                        'processing_time_ms' => $latestLog['processing_time_ms'],
+                        'signature_valid' => $latestLog['signature_valid']
+                    ]
+                ];
+            } else {
+                $result['tests']['webhook_logging'] = [
+                    'name' => 'Webhook 記錄檢查',
+                    'status' => 'warning',
+                    'message' => '找到舊的測試記錄，但可能不是剛才的測試',
+                    'details' => [
+                        'last_log_time' => $latestLog['created_at']
+                    ]
+                ];
+            }
+        } else {
+            $result['tests']['webhook_logging'] = [
+                'name' => 'Webhook 記錄檢查',
+                'status' => 'info',
+                'message' => '尚未找到測試請求記錄'
+            ];
+        }
+
+        return $this->respond($result);
+    }
 }
