@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AlertCircle, CheckCircle, Clock, Filter, RefreshCw, Search, X, ChevronLeft, ChevronRight, Eye, Activity } from 'lucide-react';
-import api from '../services/api';
+import { api } from '../services/api';
 
 const WebhookLogs = () => {
     const [logs, setLogs] = useState([]);
