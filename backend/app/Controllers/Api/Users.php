@@ -398,4 +398,175 @@ class Users extends ResourceController
 
         return $this->respond($result);
     }
+
+    /**
+     * Test LINE configuration for a specific user (admin only)
+     * This will validate the channel secret and access token
+     */
+    public function testLineConfig($id = null)
+    {
+        $currentUser = $this->getCurrentUser();
+        if (!$currentUser || $currentUser['role'] !== 'admin') {
+            return $this->failForbidden('只有管理員可以存取');
+        }
+
+        if (!$id) return $this->failNotFound();
+
+        $db = \Config\Database::connect();
+
+        // Get user
+        $user = $db->table('users')
+            ->where('id', $id)
+            ->get()
+            ->getRowArray();
+
+        if (!$user) {
+            return $this->failNotFound('使用者不存在');
+        }
+
+        $result = [
+            'user' => [
+                'id' => $user['id'],
+                'username' => $user['username'],
+                'name' => $user['name'],
+                'is_active' => (bool)$user['is_active'],
+                'webhook_key' => $user['webhook_key']
+            ],
+            'checks' => [],
+            'overall_status' => 'success'
+        ];
+
+        // Check 1: User is active
+        $result['checks']['user_active'] = [
+            'name' => '帳號狀態',
+            'status' => $user['is_active'] ? 'success' : 'error',
+            'message' => $user['is_active'] ? '帳號已啟用' : '帳號已停用，Webhook 將無法運作'
+        ];
+        if (!$user['is_active']) {
+            $result['overall_status'] = 'error';
+        }
+
+        // Check 2: Webhook key exists
+        $hasWebhookKey = !empty($user['webhook_key']);
+        $result['checks']['webhook_key'] = [
+            'name' => 'Webhook Key',
+            'status' => $hasWebhookKey ? 'success' : 'error',
+            'message' => $hasWebhookKey ? 'Webhook Key 已設定 (' . strlen($user['webhook_key']) . ' 字元)' : 'Webhook Key 未設定'
+        ];
+        if (!$hasWebhookKey) {
+            $result['overall_status'] = 'error';
+        }
+
+        // Check 3: Channel Secret exists
+        $hasChannelSecret = !empty($user['line_channel_secret']);
+        $result['checks']['channel_secret'] = [
+            'name' => 'Channel Secret',
+            'status' => $hasChannelSecret ? 'success' : 'error',
+            'message' => $hasChannelSecret ? 'Channel Secret 已設定 (' . strlen($user['line_channel_secret']) . ' 字元)' : 'Channel Secret 未設定，無法驗證 Webhook 簽章'
+        ];
+        if (!$hasChannelSecret) {
+            $result['overall_status'] = 'error';
+        }
+
+        // Check 4: Access Token exists and is valid
+        $hasAccessToken = !empty($user['line_channel_access_token']);
+        if (!$hasAccessToken) {
+            $result['checks']['access_token'] = [
+                'name' => 'Access Token',
+                'status' => 'error',
+                'message' => 'Access Token 未設定，無法發送訊息或取得用戶資料'
+            ];
+            $result['overall_status'] = 'error';
+        } else {
+            // Test the access token by calling LINE API
+            $ch = curl_init('https://api.line.me/v2/bot/info');
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Authorization: Bearer ' . $user['line_channel_access_token']
+            ]);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($ch);
+            curl_close($ch);
+
+            if ($curlError) {
+                $result['checks']['access_token'] = [
+                    'name' => 'Access Token',
+                    'status' => 'error',
+                    'message' => '網路錯誤: ' . $curlError
+                ];
+                $result['overall_status'] = 'error';
+            } elseif ($httpCode === 200) {
+                $botInfo = json_decode($response, true);
+                $result['checks']['access_token'] = [
+                    'name' => 'Access Token',
+                    'status' => 'success',
+                    'message' => 'Access Token 有效',
+                    'bot_info' => [
+                        'displayName' => $botInfo['displayName'] ?? 'N/A',
+                        'userId' => $botInfo['userId'] ?? 'N/A',
+                        'pictureUrl' => $botInfo['pictureUrl'] ?? null
+                    ]
+                ];
+            } elseif ($httpCode === 401) {
+                $error = json_decode($response, true);
+                $result['checks']['access_token'] = [
+                    'name' => 'Access Token',
+                    'status' => 'error',
+                    'message' => 'Access Token 無效: ' . ($error['message'] ?? 'Unauthorized')
+                ];
+                $result['overall_status'] = 'error';
+            } else {
+                $result['checks']['access_token'] = [
+                    'name' => 'Access Token',
+                    'status' => 'warning',
+                    'message' => '未知回應 (HTTP ' . $httpCode . ')'
+                ];
+                if ($result['overall_status'] === 'success') {
+                    $result['overall_status'] = 'warning';
+                }
+            }
+        }
+
+        // Check 5: Signature verification simulation
+        if ($hasChannelSecret) {
+            $testBody = '{"events":[]}';
+            $signature = base64_encode(hash_hmac('sha256', $testBody, $user['line_channel_secret'], true));
+            $result['checks']['signature_test'] = [
+                'name' => '簽章驗證',
+                'status' => 'success',
+                'message' => '簽章產生功能正常',
+                'sample_signature' => substr($signature, 0, 20) . '...'
+            ];
+        } else {
+            $result['checks']['signature_test'] = [
+                'name' => '簽章驗證',
+                'status' => 'skipped',
+                'message' => '無法測試 - 需要 Channel Secret'
+            ];
+        }
+
+        // Check 6: Data statistics
+        $lineUsersCount = $db->table('line_users')->where('user_id', $user['id'])->countAllResults();
+        $customersCount = $db->table('customers')->where('user_id', $user['id'])->countAllResults();
+        $messagesCount = $db->table('messages')->where('user_id', $user['id'])->countAllResults();
+
+        $result['checks']['data_stats'] = [
+            'name' => '資料統計',
+            'status' => 'info',
+            'message' => "LINE 使用者: {$lineUsersCount}, 客戶: {$customersCount}, 訊息: {$messagesCount}",
+            'details' => [
+                'line_users' => $lineUsersCount,
+                'customers' => $customersCount,
+                'messages' => $messagesCount
+            ]
+        ];
+
+        // Generate webhook URL
+        $result['webhook_url'] = '/api/line/webhook?key=' . $user['webhook_key'];
+
+        return $this->respond($result);
+    }
 }

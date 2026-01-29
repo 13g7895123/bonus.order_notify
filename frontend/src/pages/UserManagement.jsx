@@ -3,7 +3,7 @@ import { api } from '../services/api';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
-import { Plus, Trash2, Edit2, Users, Key, Copy, Check, RefreshCw, Shield, User, MessageSquare, FileText, UserCheck, Eye, X, ChevronLeft, ChevronRight, Activity, LogIn } from 'lucide-react';
+import { Plus, Trash2, Edit2, Users, Key, Copy, Check, RefreshCw, Shield, User, MessageSquare, FileText, UserCheck, Eye, X, ChevronLeft, ChevronRight, Activity, LogIn, Zap, AlertCircle, CheckCircle, Info, AlertTriangle } from 'lucide-react';
 
 const UserManagement = () => {
     const [users, setUsers] = useState([]);
@@ -34,6 +34,11 @@ const UserManagement = () => {
     const [detailsTotal, setDetailsTotal] = useState(0);
     const [detailsLimit] = useState(10);
     const [loadingDetails, setLoadingDetails] = useState(false);
+
+    // LINE config test modal states
+    const [showLineTest, setShowLineTest] = useState(false);
+    const [lineTestResult, setLineTestResult] = useState(null);
+    const [lineTestLoading, setLineTestLoading] = useState(false);
 
     useEffect(() => {
         loadUsers();
@@ -193,6 +198,54 @@ const UserManagement = () => {
         } catch (e) {
             console.error('Impersonate failed', e);
             alert('模擬登入失敗');
+        }
+    };
+
+    const handleTestLineConfig = async (user) => {
+        setShowLineTest(true);
+        setLineTestLoading(true);
+        setLineTestResult(null);
+        try {
+            const result = await api.users.testLineConfig(user.id);
+            setLineTestResult(result);
+        } catch (e) {
+            console.error('Test LINE config failed', e);
+            setLineTestResult({
+                overall_status: 'error',
+                user: { username: user.username, name: user.name },
+                checks: {
+                    connection: {
+                        name: '連線測試',
+                        status: 'error',
+                        message: '無法連線到伺服器: ' + e.message
+                    }
+                }
+            });
+        }
+        setLineTestLoading(false);
+    };
+
+    const getStatusIcon = (status) => {
+        switch (status) {
+            case 'success':
+                return <CheckCircle size={18} style={{ color: 'var(--success)' }} />;
+            case 'error':
+                return <AlertCircle size={18} style={{ color: 'var(--danger)' }} />;
+            case 'warning':
+                return <AlertTriangle size={18} style={{ color: '#f59e0b' }} />;
+            case 'info':
+            case 'skipped':
+            default:
+                return <Info size={18} style={{ color: 'var(--text-secondary)' }} />;
+        }
+    };
+
+    const getStatusColor = (status) => {
+        switch (status) {
+            case 'success': return 'var(--success)';
+            case 'error': return 'var(--danger)';
+            case 'warning': return '#f59e0b';
+            default: return 'var(--text-secondary)';
         }
     };
 
@@ -375,6 +428,9 @@ const UserManagement = () => {
                                     </div>
                                 </div>
                                 <div className="flex gap-2">
+                                    <button onClick={() => handleTestLineConfig(user)} style={{ color: '#10b981', cursor: 'pointer', background: 'none', border: 'none', padding: '8px' }} title="測試 LINE 設定">
+                                        <Zap size={18} />
+                                    </button>
                                     <button onClick={() => handleViewDetails(user)} style={{ color: 'var(--accent-primary)', cursor: 'pointer', background: 'none', border: 'none', padding: '8px' }} title="查看詳細資料">
                                         <Eye size={18} />
                                     </button>
@@ -850,6 +906,229 @@ const UserManagement = () => {
                                 </div>
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* LINE Config Test Modal */}
+            {showLineTest && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 1000,
+                    padding: '2rem'
+                }}>
+                    <div style={{
+                        backgroundColor: 'var(--bg-primary)',
+                        borderRadius: '12px',
+                        width: '100%',
+                        maxWidth: '600px',
+                        maxHeight: '90vh',
+                        overflow: 'auto',
+                        position: 'relative'
+                    }}>
+                        {/* Header */}
+                        <div style={{
+                            padding: '1.5rem',
+                            borderBottom: '1px solid var(--border-color)',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            position: 'sticky',
+                            top: 0,
+                            backgroundColor: 'var(--bg-primary)',
+                            zIndex: 1
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                <Zap size={24} style={{ color: '#10b981' }} />
+                                <div>
+                                    <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>
+                                        LINE 設定診斷
+                                    </h2>
+                                    {lineTestResult && (
+                                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '4px' }}>
+                                            {lineTestResult.user?.name || lineTestResult.user?.username}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setShowLineTest(false)}
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'var(--text-secondary)',
+                                    cursor: 'pointer',
+                                    padding: '8px'
+                                }}
+                            >
+                                <X size={24} />
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div style={{ padding: '1.5rem' }}>
+                            {lineTestLoading ? (
+                                <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
+                                    <div style={{ marginBottom: '1rem' }}>
+                                        <RefreshCw size={32} style={{ animation: 'spin 1s linear infinite' }} />
+                                    </div>
+                                    正在測試 LINE 設定...
+                                </div>
+                            ) : lineTestResult ? (
+                                <>
+                                    {/* Overall Status */}
+                                    <div style={{
+                                        padding: '1rem',
+                                        marginBottom: '1.5rem',
+                                        borderRadius: '8px',
+                                        backgroundColor: lineTestResult.overall_status === 'success' 
+                                            ? 'rgba(16, 185, 129, 0.1)' 
+                                            : lineTestResult.overall_status === 'warning'
+                                            ? 'rgba(245, 158, 11, 0.1)'
+                                            : 'rgba(239, 68, 68, 0.1)',
+                                        border: `1px solid ${
+                                            lineTestResult.overall_status === 'success' 
+                                                ? 'rgba(16, 185, 129, 0.3)' 
+                                                : lineTestResult.overall_status === 'warning'
+                                                ? 'rgba(245, 158, 11, 0.3)'
+                                                : 'rgba(239, 68, 68, 0.3)'
+                                        }`,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.75rem'
+                                    }}>
+                                        {getStatusIcon(lineTestResult.overall_status)}
+                                        <div>
+                                            <div style={{ fontWeight: '600', color: getStatusColor(lineTestResult.overall_status) }}>
+                                                {lineTestResult.overall_status === 'success' 
+                                                    ? '所有檢查通過' 
+                                                    : lineTestResult.overall_status === 'warning'
+                                                    ? '部分項目需要注意'
+                                                    : '發現問題'}
+                                            </div>
+                                            <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                                                {lineTestResult.overall_status === 'success' 
+                                                    ? 'LINE Bot 設定正確，可以正常接收和發送訊息'
+                                                    : '請檢查下方詳細資訊'}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Check Results */}
+                                    <div style={{ display: 'grid', gap: '0.75rem' }}>
+                                        {lineTestResult.checks && Object.entries(lineTestResult.checks).map(([key, check]) => (
+                                            <div key={key} style={{
+                                                padding: '1rem',
+                                                backgroundColor: 'var(--bg-secondary)',
+                                                borderRadius: '8px',
+                                                display: 'flex',
+                                                alignItems: 'flex-start',
+                                                gap: '0.75rem'
+                                            }}>
+                                                {getStatusIcon(check.status)}
+                                                <div style={{ flex: 1 }}>
+                                                    <div style={{ fontWeight: '600', marginBottom: '4px' }}>
+                                                        {check.name}
+                                                    </div>
+                                                    <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                                                        {check.message}
+                                                    </div>
+                                                    {/* Bot Info if available */}
+                                                    {check.bot_info && (
+                                                        <div style={{
+                                                            marginTop: '0.75rem',
+                                                            padding: '0.75rem',
+                                                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                                                            borderRadius: '6px',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '0.75rem'
+                                                        }}>
+                                                            {check.bot_info.pictureUrl && (
+                                                                <img 
+                                                                    src={check.bot_info.pictureUrl} 
+                                                                    alt="Bot" 
+                                                                    style={{ 
+                                                                        width: '40px', 
+                                                                        height: '40px', 
+                                                                        borderRadius: '50%' 
+                                                                    }} 
+                                                                />
+                                                            )}
+                                                            <div>
+                                                                <div style={{ fontWeight: '600', fontSize: '0.9rem' }}>
+                                                                    {check.bot_info.displayName}
+                                                                </div>
+                                                                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                                                    ID: {check.bot_info.userId}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Webhook URL */}
+                                    {lineTestResult.webhook_url && (
+                                        <div style={{
+                                            marginTop: '1.5rem',
+                                            padding: '1rem',
+                                            backgroundColor: 'var(--bg-secondary)',
+                                            borderRadius: '8px'
+                                        }}>
+                                            <div style={{
+                                                fontSize: '0.85rem',
+                                                color: 'var(--text-secondary)',
+                                                marginBottom: '0.5rem',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '0.5rem'
+                                            }}>
+                                                <Key size={14} />
+                                                Webhook URL（設定到 LINE Developers Console）
+                                            </div>
+                                            <code style={{
+                                                display: 'block',
+                                                padding: '8px 12px',
+                                                backgroundColor: 'rgba(0,0,0,0.2)',
+                                                borderRadius: '4px',
+                                                fontSize: '0.8rem',
+                                                wordBreak: 'break-all',
+                                                color: 'var(--text-primary)'
+                                            }}>
+                                                {window.location.origin.replace(':8080', ':8081')}{lineTestResult.webhook_url}
+                                            </code>
+                                        </div>
+                                    )}
+                                </>
+                            ) : (
+                                <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
+                                    無法取得測試結果
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <div style={{
+                            padding: '1rem 1.5rem',
+                            borderTop: '1px solid var(--border-color)',
+                            display: 'flex',
+                            justifyContent: 'flex-end'
+                        }}>
+                            <Button onClick={() => setShowLineTest(false)}>
+                                關閉
+                            </Button>
+                        </div>
                     </div>
                 </div>
             )}

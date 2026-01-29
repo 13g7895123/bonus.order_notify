@@ -216,7 +216,8 @@ export const api = {
         details: async (id, type = 'customers', page = 1, limit = 10) => {
             const params = new URLSearchParams({ type, page, limit }).toString();
             return (await fetchWithAuth(`${API_URL}/users/${id}/details?${params}`)).json();
-        }
+        },
+        testLineConfig: async (id) => (await fetchWithAuth(`${API_URL}/users/${id}/test-line-config`)).json()
     },
     activityLogs: {
         list: async (params = {}) => {

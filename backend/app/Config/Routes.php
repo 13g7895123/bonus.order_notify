@@ -60,6 +60,7 @@ $routes->group('api', ['namespace' => 'App\Controllers\Api'], function ($routes)
     $routes->put('users/(:num)', 'Users::update/$1');
     $routes->delete('users/(:num)', 'Users::delete/$1');
     $routes->post('users/(:num)/regenerate-webhook', 'Users::regenerateWebhook/$1');
+    $routes->get('users/(:num)/test-line-config', 'Users::testLineConfig/$1');
 
     // Activity Logs (Admin)
     $routes->get('activity-logs', 'ActivityLogs::index');
