@@ -655,8 +655,8 @@ const WebhookLogs = () => {
                                         {selectedLog.signature_valid !== null && (
                                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                                 <span style={{ color: 'var(--text-secondary)' }}>簽章驗證:</span>
-                                                <span style={{ color: selectedLog.signature_valid ? '#10b981' : '#ef4444' }}>
-                                                    {selectedLog.signature_valid ? '✓ 通過' : '✗ 失敗'}
+                                                <span style={{ color: selectedLog.signature_valid === 1 ? '#10b981' : '#ef4444' }}>
+                                                    {selectedLog.signature_valid === 1 ? '✓ 通過' : '✗ 失敗'}
                                                 </span>
                                             </div>
                                         )}
