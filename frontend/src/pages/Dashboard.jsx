@@ -6,22 +6,91 @@ import { FileText, Users, Send, MessageSquare, AlertTriangle, Shield, TrendingUp
 import { Link } from 'react-router-dom';
 
 // ── Send Trend Section ────────────────────────────────────────────────────────
+const PALETTE = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
+const TOTAL_COLOR = '#94a3b8';
+
+const LineChart = ({ labels = [], series = [] }) => {
+    const VW = 800, VH = 180;
+    const PAD = { top: 20, right: 15, bottom: 36, left: 44 };
+    const CW = VW - PAD.left - PAD.right;
+    const CH = VH - PAD.top - PAD.bottom;
+
+    const visible = series.filter(s => s.visible);
+    const maxVal  = Math.max(...visible.flatMap(s => s.data), 1);
+    const n       = labels.length;
+    const xAt = (i) => PAD.left + (n > 1 ? (i / (n - 1)) : 0.5) * CW;
+    const yAt = (v)  => PAD.top + CH - (v / maxVal) * CH;
+
+    const gridStep = Math.ceil(maxVal / 4);
+    const gridVals = Array.from({ length: 5 }, (_, i) => Math.min(i * gridStep, maxVal));
+    const labelEvery = n > 20 ? 5 : n > 10 ? 2 : 1;
+
+    return (
+        <svg viewBox={`0 0 ${VW} ${VH}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
+            {gridVals.map(v => (
+                <g key={v}>
+                    <line x1={PAD.left} y1={yAt(v)} x2={VW - PAD.right} y2={yAt(v)}
+                          stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
+                    <text x={PAD.left - 5} y={yAt(v)} textAnchor="end" fontSize="10"
+                          fill="#64748b" dominantBaseline="middle">{v}</text>
+                </g>
+            ))}
+            <line x1={PAD.left} y1={PAD.top + CH} x2={VW - PAD.right} y2={PAD.top + CH}
+                  stroke="rgba(255,255,255,0.1)" strokeWidth="1" />
+            {visible.map(s => {
+                const pts = s.data.map((v, i) => `${xAt(i)},${yAt(v)}`).join(' ');
+                return (
+                    <g key={s.user_id}>
+                        <polyline points={pts} fill="none" stroke={s.color}
+                            strokeWidth={s.user_id === 'total' ? '1.5' : '2'}
+                            strokeDasharray={s.user_id === 'total' ? '5,3' : undefined}
+                            strokeLinejoin="round" strokeLinecap="round" />
+                        {s.data.map((v, i) => v > 0 && (
+                            <circle key={i} cx={xAt(i)} cy={yAt(v)} r="3.5" fill={s.color}>
+                                <title>{`${s.label}: ${v}`}</title>
+                            </circle>
+                        ))}
+                    </g>
+                );
+            })}
+            {labels.map((lbl, i) => {
+                if (i % labelEvery !== 0 && i !== n - 1) return null;
+                return (
+                    <text key={i} x={xAt(i)} y={VH - 4} textAnchor="middle" fontSize="10" fill="#64748b">
+                        {lbl.fmt || lbl.label || lbl}
+                    </text>
+                );
+            })}
+        </svg>
+    );
+};
+
 const SendTrendSection = ({ trend }) => {
     const [tab, setTab] = useState('daily');
-    const BAR_MAX_H = 100;
+    const [visible, setVisible] = useState(new Set(['total']));
 
-    const datasets = {
-        daily:   (trend?.daily   || []).map(d => ({ label: d.date_fmt,  count: d.count })),
-        weekly:  (trend?.weekly  || []).map(d => ({ label: `${d.week_label}\n${d.week_start_fmt}~${d.week_end_fmt}`, count: d.count })),
-        monthly: (trend?.monthly || []).map(d => ({ label: d.month,     count: d.count })),
-    };
+    const trendUsers = trend?.users || [];
 
-    const data = datasets[tab] || [];
-    const max  = Math.max(...data.map(d => d.count), 1);
-    const isDaily  = tab === 'daily';
-    const isWeekly = tab === 'weekly';
-    const itemW = isDaily ? 28 : (isWeekly ? 80 : 68);
-    const gap   = isDaily ? 3  : 8;
+    useEffect(() => {
+        if (!trend?.users?.length) return;
+        const set = new Set(['total']);
+        trend.users.slice(0, 3).forEach(u => set.add(String(u.id)));
+        setVisible(set);
+    }, [trend]);
+
+    const toggle = (id) => setVisible(prev => {
+        const next = new Set(prev);
+        next.has(id) ? next.delete(id) : next.add(id);
+        return next;
+    });
+
+    const tabData   = trend?.[tab] || { labels: [], series: [] };
+    const labels    = tabData.labels || [];
+    const allSeries = (tabData.series || []).map((s, i) => ({
+        ...s,
+        color:   s.user_id === 'total' ? TOTAL_COLOR : PALETTE[(i - 1) % PALETTE.length],
+        visible: visible.has(String(s.user_id)),
+    }));
 
     const tabDefs = [
         { key: 'daily',   label: '每日（本月）' },
@@ -31,8 +100,9 @@ const SendTrendSection = ({ trend }) => {
 
     return (
         <Card style={{ marginBottom: '1.5rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                <span style={{ fontWeight: '700', fontSize: '1rem', color: 'var(--text-primary)' }}>發送趨勢分析</span>
+            {/* Header + tab switcher */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <span style={{ fontWeight: '700', fontSize: '1rem' }}>發送趨勢分析</span>
                 <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
                     {tabDefs.map(t => (
                         <button key={t.key} onClick={() => setTab(t.key)} style={{
@@ -45,51 +115,46 @@ const SendTrendSection = ({ trend }) => {
                 </div>
             </div>
 
-            {data.length === 0 ? (
+            {/* User toggle pills */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '1rem' }}>
+                <button onClick={() => toggle('total')} style={{
+                    padding: '3px 10px', borderRadius: '20px', border: 'none', cursor: 'pointer',
+                    fontSize: '0.75rem', fontWeight: '600',
+                    backgroundColor: visible.has('total') ? TOTAL_COLOR : 'var(--bg-tertiary)',
+                    color: visible.has('total') ? '#fff' : 'var(--text-secondary)',
+                }}>全部</button>
+                {trendUsers.map((u, i) => {
+                    const color = PALETTE[i % PALETTE.length];
+                    const isVis = visible.has(String(u.id));
+                    return (
+                        <button key={u.id} onClick={() => toggle(String(u.id))} style={{
+                            padding: '3px 10px', borderRadius: '20px', border: 'none', cursor: 'pointer',
+                            fontSize: '0.75rem', fontWeight: '600',
+                            backgroundColor: isVis ? color : 'var(--bg-tertiary)',
+                            color: isVis ? '#fff' : 'var(--text-secondary)',
+                            opacity: isVis ? 1 : 0.6,
+                        }}>{u.name || u.username}</button>
+                    );
+                })}
+            </div>
+
+            {/* Chart */}
+            {labels.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>此期間無發送記錄</div>
+            ) : allSeries.some(s => s.visible) ? (
+                <LineChart labels={labels} series={allSeries} />
             ) : (
-                <div style={{ overflowX: 'auto' }}>
-                    {/* Bar area */}
-                    <div style={{
-                        display: 'flex', alignItems: 'flex-end', gap: `${gap}px`,
-                        paddingTop: '20px', paddingBottom: '2px',
-                        borderBottom: '1px solid var(--border-color)',
-                        minWidth: `${data.length * (itemW + gap)}px`,
-                    }}>
-                        {data.map((d, i) => {
-                            const bh = Math.max(Math.round((d.count / max) * BAR_MAX_H), d.count > 0 ? 4 : 1);
-                            return (
-                                <div key={i} style={{ width: `${itemW}px`, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                    <span style={{
-                                        fontSize: isDaily ? '0.6rem' : '0.68rem',
-                                        color: 'rgb(59,130,246)', fontWeight: '600',
-                                        marginBottom: '3px', lineHeight: 1,
-                                        visibility: d.count > 0 ? 'visible' : 'hidden',
-                                    }}>{d.count}</span>
-                                    <div style={{
-                                        width: '100%', height: `${bh}px`,
-                                        backgroundColor: d.count > 0 ? 'rgba(59,130,246,0.65)' : 'rgba(255,255,255,0.06)',
-                                        borderRadius: '3px 3px 0 0',
-                                    }} />
-                                </div>
-                            );
-                        })}
-                    </div>
-                    {/* Label area */}
-                    <div style={{
-                        display: 'flex', gap: `${gap}px`, paddingTop: '5px',
-                        minWidth: `${data.length * (itemW + gap)}px`,
-                    }}>
-                        {data.map((d, i) => (
-                            <div key={i} style={{
-                                width: `${itemW}px`, flexShrink: 0,
-                                textAlign: 'center',
-                                fontSize: isDaily ? '0.6rem' : '0.62rem',
-                                color: 'var(--text-secondary)',
-                                lineHeight: 1.3, whiteSpace: 'pre',
-                            }}>{d.label}</div>
-                        ))}
-                    </div>
+                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>請選擇至少一位使用者</div>
+            )}
+
+            {/* Weekly range legend */}
+            {tab === 'weekly' && labels.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginTop: '8px', justifyContent: 'center' }}>
+                    {labels.map((lbl, i) => (
+                        <span key={i} style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                            <strong>{lbl.label}</strong> {lbl.fmt_range}
+                        </span>
+                    ))}
                 </div>
             )}
         </Card>

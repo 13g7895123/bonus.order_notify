@@ -378,61 +378,136 @@ class Stats extends ResourceController
             return $u['msgs_this_month'] > 0 || $u['msgs_last_month'] > 0;
         }));
 
-        // ── Send trend: daily (this month) ───────────────────────────────────
-        $dailySends = $db->query("
-            SELECT DATE(created_at) AS `date`, COUNT(*) AS `count`
+        // ── Send trend: users who have ever sent messages ────────────────────
+        $trendUsers = $db->query("
+            SELECT DISTINCT u.id, u.name, u.username
+            FROM messages m
+            JOIN users u ON u.id = m.user_id
+            WHERE m.sender = 'system'
+              AND u.role != 'admin'
+            ORDER BY u.name ASC
+        ")->getResultArray();
+        foreach ($trendUsers as &$tu) { $tu['id'] = (int)$tu['id']; }
+        unset($tu);
+
+        // Helper: build empty series skeleton (total + one per user)
+        $buildSeries = function () use ($trendUsers) {
+            $s = [['user_id' => 'total', 'label' => '全部', 'data' => []]];
+            foreach ($trendUsers as $u) {
+                $s[] = ['user_id' => (int)$u['id'], 'label' => $u['name'] ?: $u['username'], 'data' => []];
+            }
+            return $s;
+        };
+
+        // ── Daily (this month) ───────────────────────────────────────────────
+        $dailyRows = $db->query("
+            SELECT DATE(created_at) AS `date`, user_id, COUNT(*) AS `count`
             FROM messages
             WHERE sender = 'system'
-              AND created_at >= ?
-              AND created_at <= ?
-            GROUP BY DATE(created_at)
+              AND created_at >= ? AND created_at <= ?
+            GROUP BY DATE(created_at), user_id
             ORDER BY `date` ASC
         ", [$startOfMonth, $endOfMonth])->getResultArray();
 
-        foreach ($dailySends as &$d) {
-            $d['date_fmt'] = substr($d['date'], 8); // day number only: "01"-"31"
-            $d['count']    = (int)$d['count'];
+        $daysInMonth = (int)date('t');
+        $dailyLabels = [];
+        for ($d = 1; $d <= $daysInMonth; $d++) {
+            $dailyLabels[] = ['fmt' => str_pad($d, 2, '0', STR_PAD_LEFT)];
         }
-        unset($d);
 
-        // ── Send trend: weekly (this month) ──────────────────────────────────
-        $weeklySends = $db->query("
+        $dailyIdx = [];
+        foreach ($dailyRows as $row) {
+            $dailyIdx[$row['date']][(int)$row['user_id']] = (int)$row['count'];
+        }
+
+        $dailySeries = $buildSeries();
+        for ($d = 1; $d <= $daysInMonth; $d++) {
+            $dateStr = date('Y-m-') . str_pad($d, 2, '0', STR_PAD_LEFT);
+            $dayData = $dailyIdx[$dateStr] ?? [];
+            $dailySeries[0]['data'][] = array_sum($dayData);
+            foreach ($trendUsers as $idx => $u) {
+                $dailySeries[$idx + 1]['data'][] = $dayData[(int)$u['id']] ?? 0;
+            }
+        }
+
+        // ── Weekly (this month) ──────────────────────────────────────────────
+        $weeklyRows = $db->query("
             SELECT YEARWEEK(created_at, 1) AS yw,
-                   MIN(DATE(created_at))   AS week_start,
-                   MAX(DATE(created_at))   AS week_end,
-                   COUNT(*)               AS `count`
+                   MIN(DATE(created_at)) AS week_start,
+                   MAX(DATE(created_at)) AS week_end,
+                   user_id, COUNT(*) AS `count`
             FROM messages
             WHERE sender = 'system'
-              AND created_at >= ?
-              AND created_at <= ?
-            GROUP BY YEARWEEK(created_at, 1)
+              AND created_at >= ? AND created_at <= ?
+            GROUP BY YEARWEEK(created_at, 1), user_id
             ORDER BY yw ASC
         ", [$startOfMonth, $endOfMonth])->getResultArray();
 
-        foreach ($weeklySends as $idx => &$w) {
-            $w['week_label']     = 'W' . ($idx + 1);
-            $w['week_start_fmt'] = date('m/d', strtotime($w['week_start']));
-            $w['week_end_fmt']   = date('m/d', strtotime($w['week_end']));
-            $w['count']          = (int)$w['count'];
-            unset($w['yw']);
+        $weeklyInfo  = [];
+        $weeklyIdx   = [];
+        $weeklyOrder = [];
+        foreach ($weeklyRows as $row) {
+            $yw  = $row['yw'];
+            $uid = (int)$row['user_id'];
+            if (!in_array($yw, $weeklyOrder)) $weeklyOrder[] = $yw;
+            $weeklyIdx[$yw][$uid] = (int)$row['count'];
+            if (!isset($weeklyInfo[$yw])) {
+                $weeklyInfo[$yw] = ['week_start' => $row['week_start'], 'week_end' => $row['week_end']];
+            } else {
+                if ($row['week_start'] < $weeklyInfo[$yw]['week_start']) $weeklyInfo[$yw]['week_start'] = $row['week_start'];
+                if ($row['week_end']   > $weeklyInfo[$yw]['week_end'])   $weeklyInfo[$yw]['week_end']   = $row['week_end'];
+            }
         }
-        unset($w);
+        sort($weeklyOrder);
 
-        // ── Send trend: monthly (last 12 months) ─────────────────────────────
+        $weeklyLabels = [];
+        foreach ($weeklyOrder as $i => $yw) {
+            $info = $weeklyInfo[$yw];
+            $weeklyLabels[] = [
+                'label'     => 'W' . ($i + 1),
+                'fmt_range' => date('m/d', strtotime($info['week_start'])) . '~' . date('m/d', strtotime($info['week_end'])),
+            ];
+        }
+
+        $weeklySeries = $buildSeries();
+        foreach ($weeklyOrder as $yw) {
+            $ywData = $weeklyIdx[$yw] ?? [];
+            $weeklySeries[0]['data'][] = array_sum($ywData);
+            foreach ($trendUsers as $idx => $u) {
+                $weeklySeries[$idx + 1]['data'][] = $ywData[(int)$u['id']] ?? 0;
+            }
+        }
+
+        // ── Monthly (last 12 months) ─────────────────────────────────────────
         $twelveMonthsAgo = date('Y-m-01 00:00:00', strtotime('-11 months'));
-        $monthlySends = $db->query("
-            SELECT DATE_FORMAT(created_at, '%Y-%m') AS `month`, COUNT(*) AS `count`
+        $monthlyRows = $db->query("
+            SELECT DATE_FORMAT(created_at, '%Y-%m') AS `month`, user_id, COUNT(*) AS `count`
             FROM messages
             WHERE sender = 'system'
               AND created_at >= ?
-            GROUP BY DATE_FORMAT(created_at, '%Y-%m')
+            GROUP BY DATE_FORMAT(created_at, '%Y-%m'), user_id
             ORDER BY `month` ASC
         ", [$twelveMonthsAgo])->getResultArray();
 
-        foreach ($monthlySends as &$mo) {
-            $mo['count'] = (int)$mo['count'];
+        $monthlyIdx   = [];
+        $monthlyOrder = [];
+        foreach ($monthlyRows as $row) {
+            $mo  = $row['month'];
+            $uid = (int)$row['user_id'];
+            if (!in_array($mo, $monthlyOrder)) $monthlyOrder[] = $mo;
+            $monthlyIdx[$mo][$uid] = (int)$row['count'];
         }
-        unset($mo);
+        sort($monthlyOrder);
+
+        $monthlyLabels = array_map(fn($mo) => ['label' => $mo, 'fmt' => $mo], $monthlyOrder);
+        $monthlySeries = $buildSeries();
+        foreach ($monthlyOrder as $mo) {
+            $moData = $monthlyIdx[$mo] ?? [];
+            $monthlySeries[0]['data'][] = array_sum($moData);
+            foreach ($trendUsers as $idx => $u) {
+                $monthlySeries[$idx + 1]['data'][] = $moData[(int)$u['id']] ?? 0;
+            }
+        }
 
         return $this->respond([
             'period'    => date('Y年m月'),
@@ -452,9 +527,10 @@ class Stats extends ResourceController
             'top_senders' => $topSenders,
             'users'        => $users,
             'send_trend'   => [
-                'daily'   => $dailySends,
-                'weekly'  => $weeklySends,
-                'monthly' => $monthlySends,
+                'users'   => $trendUsers,
+                'daily'   => ['labels' => $dailyLabels,   'series' => $dailySeries],
+                'weekly'  => ['labels' => $weeklyLabels,  'series' => $weeklySeries],
+                'monthly' => ['labels' => $monthlyLabels, 'series' => $monthlySeries],
             ],
         ]);
     }
