@@ -3,7 +3,7 @@ import { api } from '../services/api';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
-import { Plus, Trash2, Edit2, Users, Key, Copy, Check, RefreshCw, Shield, User, MessageSquare, FileText, UserCheck, Eye, X, ChevronLeft, ChevronRight, Activity, LogIn, Zap, AlertCircle, CheckCircle, Info, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, Edit2, Users, Key, Copy, Check, RefreshCw, Shield, User, MessageSquare, FileText, UserCheck, Eye, X, ChevronLeft, ChevronRight, Activity, LogIn, Zap, AlertCircle, CheckCircle, Info, AlertTriangle, Clock } from 'lucide-react';
 
 const UserManagement = () => {
     const [users, setUsers] = useState([]);
@@ -424,6 +424,36 @@ const UserManagement = () => {
                                         </div>
                                         <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
                                             @{user.username}
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '6px', flexWrap: 'wrap' }}>
+                                            {user.is_online ? (
+                                                <span style={{
+                                                    display: 'inline-flex', alignItems: 'center', gap: '5px',
+                                                    fontSize: '0.75rem', padding: '2px 8px', borderRadius: '4px',
+                                                    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                                                    color: 'var(--success)', fontWeight: '500'
+                                                }}>
+                                                    <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#10b981', display: 'inline-block' }} />
+                                                    登入中
+                                                </span>
+                                            ) : (
+                                                <span style={{
+                                                    display: 'inline-flex', alignItems: 'center', gap: '5px',
+                                                    fontSize: '0.75rem', padding: '2px 8px', borderRadius: '4px',
+                                                    backgroundColor: 'rgba(107, 114, 128, 0.15)',
+                                                    color: 'var(--text-secondary)'
+                                                }}>
+                                                    <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#6b7280', display: 'inline-block' }} />
+                                                    離線
+                                                </span>
+                                            )}
+                                            {user.last_login_at ? (
+                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                                    <Clock size={12} /> 最後登入：{new Date(user.last_login_at).toLocaleString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                                </span>
+                                            ) : (
+                                                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>尚未登入過</span>
+                                            )}
                                         </div>
                                     </div>
                                 </div>

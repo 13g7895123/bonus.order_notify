@@ -35,6 +35,11 @@ class Auth extends ResourceController
             return $this->failUnauthorized('帳號已停用');
         }
 
+        // Update last login time
+        $db->table('users')->where('id', $user['id'])->update([
+            'last_login_at' => date('Y-m-d H:i:s')
+        ]);
+
         // Generate access token
         $accessToken = bin2hex(random_bytes(32));
         $db->table('user_tokens')->insert([

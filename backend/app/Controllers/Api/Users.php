@@ -24,7 +24,7 @@ class Users extends ResourceController
         $db = \Config\Database::connect();
 
         $users = $db->table('users')
-            ->select('users.id, users.username, users.name, users.role, users.webhook_key, users.is_active, users.can_create_users, users.line_channel_secret, users.message_quota, users.created_at')
+            ->select('users.id, users.username, users.name, users.role, users.webhook_key, users.is_active, users.can_create_users, users.line_channel_secret, users.message_quota, users.created_at, users.last_login_at')
             ->get()->getResultArray();
 
         // Add statistics for each user
@@ -41,6 +41,9 @@ class Users extends ResourceController
                 'line_users' => $db->table('line_users')->where('user_id', $user['id'])->countAllResults()
             ];
             $user['stats']['remaining_quota'] = max(0, ($user['message_quota'] ?? 200) - $user['stats']['messages_this_month']);
+
+            // Check if user currently has an active session token
+            $user['is_online'] = (bool)$db->table('user_tokens')->where('user_id', $user['id'])->countAllResults();
 
             // Hide sensitive data
             $user['has_line_config'] = !empty($user['line_channel_secret']);

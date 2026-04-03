@@ -126,6 +126,42 @@ const SendNotification = () => {
             return;
         }
 
+        // Warn if there are unmatched customers and some variables are XLS-mapped without manual fallback
+        if (importData) {
+            const matchedIds = new Set((importData.matched || []).map(m => Number(m.id)));
+            const unmatchedSelected = selectedCustomers.filter(cid => !matchedIds.has(Number(cid)));
+
+            if (unmatchedSelected.length > 0) {
+                // Check if any variable is XLS-mapped and has no manual fallback
+                const xlsMappedWithoutFallback = variables.filter(v => variableMapping[v] && !variableValues[v]);
+
+                if (xlsMappedWithoutFallback.length > 0) {
+                    const unmatchedNames = unmatchedSelected
+                        .map(cid => {
+                            const c = customers.find(x => x.id === Number(cid));
+                            return c ? (c.custom_name || c.name || `ID:${cid}`) : `ID:${cid}`;
+                        })
+                        .join(', ');
+
+                    const confirmed = window.confirm(
+                        `警告：以下 ${unmatchedSelected.length} 位客戶不在 XLS 名單中，` +
+                        `但變數「${xlsMappedWithoutFallback.join('、')}」僅設定了 XLS 欄位來源且無手動備用值，` +
+                        `發送後這些變數將為空白。\n\n` +
+                        `未匹配客戶：${unmatchedNames}\n\n` +
+                        `是否仍要繼續發送？`
+                    );
+                    if (!confirmed) return;
+                } else {
+                    // Variables have manual fallback, just remind user
+                    const confirmed = window.confirm(
+                        `注意：有 ${unmatchedSelected.length} 位客戶不在 XLS 名單中，` +
+                        `將使用手動填寫的變數值發送。\n\n是否繼續？`
+                    );
+                    if (!confirmed) return;
+                }
+            }
+        }
+
         setShowPreviewModal(true);
     };
 
@@ -170,7 +206,8 @@ const SendNotification = () => {
             if (res.suspended) {
                 setResult({ success: false, message: res.notice, suspended: true });
             } else {
-                setResult({ success: res.success, message: res.message });
+                const msg = res.message || res.messages?.error || '發送失敗，請確認 LINE 設定是否正確';
+                setResult({ success: res.success ?? false, message: msg });
             }
         } catch (e) {
             setResult({ success: false, message: '發送失敗' });
@@ -346,6 +383,34 @@ const SendNotification = () => {
 
                         <div style={{ marginBottom: '1.5rem' }}>
                             <p style={{ marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>您即將發送通知給 <strong>{selectedCustomers.length}</strong> 位客戶。</p>
+                            {importData && (() => {
+                                const matchedIds = new Set((importData.matched || []).map(m => Number(m.id)));
+                                const unmatchedCount = selectedCustomers.filter(cid => !matchedIds.has(Number(cid))).length;
+                                if (unmatchedCount === 0) return null;
+                                const xlsMappedWithoutFallback = variables.filter(v => variableMapping[v] && !variableValues[v]);
+                                return (
+                                    <div style={{
+                                        padding: '10px 12px',
+                                        marginBottom: '0.75rem',
+                                        borderRadius: '6px',
+                                        backgroundColor: xlsMappedWithoutFallback.length > 0 ? 'rgba(239,68,68,0.1)' : 'rgba(234,179,8,0.1)',
+                                        border: `1px solid ${xlsMappedWithoutFallback.length > 0 ? 'rgba(239,68,68,0.4)' : 'rgba(234,179,8,0.4)'}`,
+                                        color: xlsMappedWithoutFallback.length > 0 ? 'var(--danger)' : '#b45309',
+                                        fontSize: '0.85rem',
+                                        display: 'flex',
+                                        gap: '8px',
+                                        alignItems: 'flex-start'
+                                    }}>
+                                        <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '1px' }} />
+                                        <span>
+                                            {unmatchedCount} 位客戶不在 XLS 名單中
+                                            {xlsMappedWithoutFallback.length > 0
+                                                ? `，且變數「${xlsMappedWithoutFallback.join('、')}」無手動備用值，這些客戶的訊息將含有空白變數。`
+                                                : `，將使用手動填寫的變數值發送。`}
+                                        </span>
+                                    </div>
+                                );
+                            })()}
                             <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>以下是預覽 (以第一位選取者 <strong>{getPreviewUserName()}</strong> 為例)：</p>
                         </div>
 
