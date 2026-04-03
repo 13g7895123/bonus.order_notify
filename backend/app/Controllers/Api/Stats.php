@@ -534,4 +534,67 @@ class Stats extends ResourceController
             ],
         ]);
     }
+
+    /**
+     * Get duplicate-send blocked logs (admin only)
+     * GET /api/admin/duplicate-send-logs?page=1&user_id=&date=YYYY-MM-DD
+     */
+    public function adminDuplicateLogs()
+    {
+        $currentUser = $this->getCurrentUser();
+        if (!$currentUser || $currentUser['role'] !== 'admin') {
+            return $this->failForbidden('只有管理員可以存取');
+        }
+
+        $db     = \Config\Database::connect();
+        $page   = max(1, (int)($this->request->getGet('page') ?? 1));
+        $limit  = 20;
+        $userId = $this->request->getGet('user_id') ? (int)$this->request->getGet('user_id') : null;
+        $date   = $this->request->getGet('date') ?? '';
+
+        $query = $db->table('send_duplicate_logs dl')
+            ->select('dl.*, u.name AS user_name, u.username')
+            ->join('users u', 'u.id = dl.user_id', 'left');
+
+        if ($userId) $query->where('dl.user_id', $userId);
+        if ($date && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            $query->where('DATE(dl.created_at)', $date);
+        }
+
+        $total = $query->countAllResults(false);
+        $logs  = $query->orderBy('dl.created_at', 'DESC')
+                       ->limit($limit, ($page - 1) * $limit)
+                       ->get()->getResultArray();
+
+        // Summary stats
+        $totalCount = $db->table('send_duplicate_logs')->countAllResults();
+        $todayCount = $db->table('send_duplicate_logs')
+            ->where('DATE(created_at)', date('Y-m-d'))
+            ->countAllResults();
+
+        // Per-user summary
+        $userSummary = $db->query("
+            SELECT dl.user_id, u.name, u.username, COUNT(*) AS `count`, MAX(dl.created_at) AS last_at
+            FROM send_duplicate_logs dl
+            JOIN users u ON u.id = dl.user_id
+            GROUP BY dl.user_id, u.name, u.username
+            ORDER BY `count` DESC
+        ")->getResultArray();
+
+        foreach ($userSummary as &$s) {
+            $s['count'] = (int)$s['count'];
+        }
+
+        return $this->respond([
+            'logs'         => $logs,
+            'total'        => (int)$total,
+            'page'         => (int)$page,
+            'limit'        => (int)$limit,
+            'summary'      => [
+                'total_count' => (int)$totalCount,
+                'today_count' => (int)$todayCount,
+            ],
+            'user_summary' => $userSummary,
+        ]);
+    }
 }

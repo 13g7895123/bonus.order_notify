@@ -65,12 +65,18 @@ class Notifications extends ResourceController
 
         if (!$template) return $this->failNotFound('Template not found');
 
-        $sentCount = 0;
-        $errors = [];
+        $sentCount     = 0;
+        $skippedCount  = 0;
+        $errors        = [];
         $logRecipients = [];
+        $duplicateLogs = [];
 
         // Global variables from request
         $globalVariables = $json->variables ?? [];
+
+        // Today's boundaries for deduplication
+        $todayStart = date('Y-m-d 00:00:00');
+        $todayEnd   = date('Y-m-d 23:59:59');
 
         foreach ($recipients as $recipient) {
             $cid = $recipient->id ?? $recipient['id'] ?? null;
@@ -99,6 +105,36 @@ class Notifications extends ResourceController
                 foreach ($finalVariables as $key => $value) {
                     $content = str_replace('{{' . $key . '}}', $value, $content);
                 }
+
+                // ── Deduplication check ─────────────────────────────────────
+                // If the same customer already received the same content today, skip
+                $existingMsg = $db->table('messages')
+                    ->select('id, created_at')
+                    ->where('user_id', $userId)
+                    ->where('customer_id', $customer['id'])
+                    ->where('content', $content)
+                    ->where('sender', 'system')
+                    ->where('created_at >=', $todayStart)
+                    ->where('created_at <=', $todayEnd)
+                    ->limit(1)
+                    ->get()->getRowArray();
+
+                if ($existingMsg) {
+                    $skippedCount++;
+                    $duplicateLogs[] = [
+                        'user_id'          => $userId,
+                        'send_log_id'      => null, // will back-fill after send_log insert
+                        'customer_id'      => $customer['id'],
+                        'customer_name'    => $displayName,
+                        'line_uid'         => $customer['line_uid'],
+                        'template_name'    => $template['name'],
+                        'message_content'  => $content,
+                        'original_sent_at' => $existingMsg['created_at'],
+                        'created_at'       => date('Y-m-d H:i:s'),
+                    ];
+                    continue; // skip sending
+                }
+                // ───────────────────────────────────────────────────────────
 
                 // Call LINE Message API
                 $lineResult = $this->sendLineMessage($accessToken, $customer['line_uid'], $content);
@@ -143,6 +179,7 @@ class Notifications extends ResourceController
             'variable_defaults_json' => json_encode((array)$globalVariables, JSON_UNESCAPED_UNICODE),
             'recipients_selected'   => count($recipients),
             'recipients_sent'       => $sentCount,
+            'recipients_skipped'    => $skippedCount,
             'has_xls_import'        => ($xlsImport && !empty($xlsImport->has_import)) ? 1 : 0,
             'xls_matched_count'     => (int)($xlsImport->matched_count ?? 0),
             'xls_not_matched_count' => (int)($xlsImport->not_matched_customer_count ?? 0),
@@ -160,11 +197,25 @@ class Notifications extends ResourceController
             $db->table('send_log_recipients')->insertBatch($logRecipients);
         }
 
+        // Batch insert duplicate logs (back-fill send_log_id)
+        if (!empty($duplicateLogs)) {
+            foreach ($duplicateLogs as &$dl) {
+                $dl['send_log_id'] = $sendLogId;
+            }
+            $db->table('send_duplicate_logs')->insertBatch($duplicateLogs);
+        }
+
+        $message = "成功發送給 $sentCount 位客戶";
+        if ($skippedCount > 0) {
+            $message .= "，略過 $skippedCount 筆（今日已發送相同內容）";
+        }
+
         return $this->respond([
-            'success' => $sentCount > 0,
-            'sent_count' => $sentCount,
-            'message' => "成功發送給 $sentCount 位客戶",
-            'errors' => $errors
+            'success'        => $sentCount > 0 || $skippedCount > 0,
+            'sent_count'     => $sentCount,
+            'skipped_count'  => $skippedCount,
+            'message'        => $message,
+            'errors'         => $errors
         ]);
     }
 

@@ -210,7 +210,11 @@ export const api = {
     },
     stats: {
         get: async () => (await fetchWithAuth(`${API_URL}/stats`)).json(),
-        adminDashboard: async () => (await fetchWithAuth(`${API_URL}/admin/dashboard`)).json()
+        adminDashboard: async () => (await fetchWithAuth(`${API_URL}/admin/dashboard`)).json(),
+        adminDuplicateLogs: async (params = {}) => {
+            const query = new URLSearchParams(params).toString();
+            return (await fetchWithAuth(`${API_URL}/admin/duplicate-send-logs${query ? '?' + query : ''}`)).json();
+        }
     },
     users: {
         list: async () => (await fetchWithAuth(`${API_URL}/users`)).json(),

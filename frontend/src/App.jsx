@@ -15,6 +15,7 @@ import InviteUsers from './pages/InviteUsers';
 import ActivityLogs from './pages/ActivityLogs';
 import WebhookLogs from './pages/WebhookLogs';
 import UserSendStats from './pages/UserSendStats';
+import DuplicateSendLogs from './pages/DuplicateSendLogs';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 const ProtectedRoute = ({ children }) => {
@@ -49,6 +50,7 @@ function AppRoutes() {
       <Route path="/activity-logs" element={<ProtectedRoute><ActivityLogs /></ProtectedRoute>} />
       <Route path="/webhook-logs" element={<ProtectedRoute><WebhookLogs /></ProtectedRoute>} />
       <Route path="/user-send-stats" element={<ProtectedRoute><UserSendStats /></ProtectedRoute>} />
+      <Route path="/duplicate-send-logs" element={<ProtectedRoute><DuplicateSendLogs /></ProtectedRoute>} />
     </Routes>
   );
 }

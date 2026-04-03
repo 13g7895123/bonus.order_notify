@@ -56,6 +56,7 @@ $routes->group('api', ['namespace' => 'App\Controllers\Api'], function ($routes)
     $routes->get('admin/dashboard', 'Stats::adminDashboard');
     $routes->get('admin/user-send-stats', 'Stats::adminUserStats');
     $routes->get('admin/user-send-detail/(:num)', 'Stats::userSendDetail/$1');
+    $routes->get('admin/duplicate-send-logs', 'Stats::adminDuplicateLogs');
 
     // User Management (Admin)
     $routes->get('users', 'Users::index');
