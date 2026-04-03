@@ -284,4 +284,112 @@ class Stats extends ResourceController
             'limit' => $limit,
         ]);
     }
+
+    /**
+     * Get aggregated statistics for admin dashboard (admin only)
+     */
+    public function adminDashboard()
+    {
+        $currentUser = $this->getCurrentUser();
+        if (!$currentUser || $currentUser['role'] !== 'admin') {
+            return $this->failForbidden('只有管理員可以存取');
+        }
+
+        $db = \Config\Database::connect();
+
+        $startOfMonth = date('Y-m-01 00:00:00');
+        $endOfMonth   = date('Y-m-t 23:59:59');
+        $today        = date('Y-m-d 00:00:00');
+        $lastMonthStart = date('Y-m-01 00:00:00', strtotime('first day of last month'));
+        $lastMonthEnd   = date('Y-m-t 23:59:59',  strtotime('last day of last month'));
+
+        // ── Platform totals ──────────────────────────────────────────────────
+        $totalUsers = $db->table('users')->where('role !=', 'admin')->countAllResults();
+        $activeUsers = $db->table('users')->where('role !=', 'admin')->where('is_active', 1)->where('is_suspended', 0)->countAllResults();
+        $suspendedUsers = $db->table('users')->where('role !=', 'admin')->where('is_suspended', 1)->countAllResults();
+        $onlineUsers = $db->query(
+            "SELECT COUNT(DISTINCT user_id) AS cnt FROM user_tokens WHERE user_id IN (SELECT id FROM users WHERE role != 'admin')"
+        )->getRow()->cnt;
+
+        $totalCustomers  = $db->table('customers')->countAllResults();
+        $totalTemplates  = $db->table('templates')->countAllResults();
+
+        // Messages this month vs last month
+        $msgsThisMonth = $db->table('messages')
+            ->where('sender', 'system')
+            ->where('created_at >=', $startOfMonth)
+            ->where('created_at <=', $endOfMonth)
+            ->countAllResults();
+
+        $msgsLastMonth = $db->table('messages')
+            ->where('sender', 'system')
+            ->where('created_at >=', $lastMonthStart)
+            ->where('created_at <=', $lastMonthEnd)
+            ->countAllResults();
+
+        $msgsToday = $db->table('messages')
+            ->where('sender', 'system')
+            ->where('created_at >=', $today)
+            ->countAllResults();
+
+        // ── Top senders this month ──────────────────────────────────────────
+        $topSenders = $db->query("
+            SELECT u.id, u.username, u.name, COUNT(m.id) AS sent_count
+            FROM messages m
+            JOIN users u ON u.id = m.user_id
+            WHERE m.sender = 'system'
+              AND m.created_at >= ?
+              AND m.created_at <= ?
+              AND u.role != 'admin'
+            GROUP BY u.id, u.username, u.name
+            ORDER BY sent_count DESC
+            LIMIT 5
+        ", [$startOfMonth, $endOfMonth])->getResultArray();
+
+        // ── Per-user stats (non-admin) ───────────────────────────────────────
+        $users = $db->table('users')
+            ->select('id, username, name, is_active, is_suspended, message_quota, last_login_at')
+            ->where('role !=', 'admin')
+            ->orderBy('name', 'ASC')
+            ->get()->getResultArray();
+
+        foreach ($users as &$u) {
+            $uid = (int)$u['id'];
+            $u['is_online']      = (bool)$db->table('user_tokens')->where('user_id', $uid)->countAllResults();
+            $u['is_active']      = (bool)$u['is_active'];
+            $u['is_suspended']   = (bool)$u['is_suspended'];
+            $u['customers']      = $db->table('customers')->where('user_id', $uid)->countAllResults();
+            $u['templates']      = $db->table('templates')->where('user_id', $uid)->countAllResults();
+            $u['msgs_this_month'] = $db->table('messages')
+                ->where('user_id', $uid)->where('sender', 'system')
+                ->where('created_at >=', $startOfMonth)->where('created_at <=', $endOfMonth)
+                ->countAllResults();
+            $u['msgs_last_month'] = $db->table('messages')
+                ->where('user_id', $uid)->where('sender', 'system')
+                ->where('created_at >=', $lastMonthStart)->where('created_at <=', $lastMonthEnd)
+                ->countAllResults();
+            $u['quota']           = (int)($u['message_quota'] ?? 200);
+            $u['quota_remaining'] = max(0, $u['quota'] - $u['msgs_this_month']);
+            unset($u['message_quota']);
+        }
+
+        return $this->respond([
+            'period'    => date('Y年m月'),
+            'platform'  => [
+                'total_users'     => (int)$totalUsers,
+                'active_users'    => (int)$activeUsers,
+                'suspended_users' => (int)$suspendedUsers,
+                'online_users'    => (int)$onlineUsers,
+                'total_customers' => (int)$totalCustomers,
+                'total_templates' => (int)$totalTemplates,
+            ],
+            'messages'  => [
+                'this_month' => (int)$msgsThisMonth,
+                'last_month' => (int)$msgsLastMonth,
+                'today'      => (int)$msgsToday,
+            ],
+            'top_senders' => $topSenders,
+            'users'        => $users,
+        ]);
+    }
 }

@@ -53,6 +53,7 @@ $routes->group('api', ['namespace' => 'App\Controllers\Api'], function ($routes)
 
     // Dashboard Stats
     $routes->get('stats', 'Stats::index');
+    $routes->get('admin/dashboard', 'Stats::adminDashboard');
     $routes->get('admin/user-send-stats', 'Stats::adminUserStats');
     $routes->get('admin/user-send-detail/(:num)', 'Stats::userSendDetail/$1');
 

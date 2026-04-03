@@ -209,7 +209,8 @@ export const api = {
         testWebhook: async (userId) => (await fetchWithAuth(`${API_URL}/line/webhook/test/${userId}`, { method: 'POST' })).json()
     },
     stats: {
-        get: async () => (await fetchWithAuth(`${API_URL}/stats`)).json()
+        get: async () => (await fetchWithAuth(`${API_URL}/stats`)).json(),
+        adminDashboard: async () => (await fetchWithAuth(`${API_URL}/admin/dashboard`)).json()
     },
     users: {
         list: async () => (await fetchWithAuth(`${API_URL}/users`)).json(),
