@@ -234,6 +234,10 @@ export const api = {
         adminSendStats: async (params = {}) => {
             const query = new URLSearchParams(params).toString();
             return (await fetchWithAuth(`${API_URL}/admin/user-send-stats${query ? '?' + query : ''}`)).json();
+        },
+        adminUserSendDetail: async (userId, params = {}) => {
+            const query = new URLSearchParams(params).toString();
+            return (await fetchWithAuth(`${API_URL}/admin/user-send-detail/${userId}${query ? '?' + query : ''}`)).json();
         }
     },
     activityLogs: {

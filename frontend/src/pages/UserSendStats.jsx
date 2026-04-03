@@ -3,7 +3,8 @@ import { api } from '../services/api';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import {
-    BarChart2, Users, RefreshCw, AlertOctagon, CheckCircle, XCircle, Calendar, Pause, Play, Search
+    BarChart2, Users, RefreshCw, AlertOctagon, CheckCircle, XCircle, Calendar, Pause, Play, Search,
+    ChevronDown, ChevronRight, FileText, AlertCircle, Info, X, Eye
 } from 'lucide-react';
 
 const MODES = [
@@ -13,7 +14,279 @@ const MODES = [
     { value: 'all',        label: '全部' },
 ];
 
-// Modal for setting/clearing suspend notice
+// ── Send Detail Modal ─────────────────────────────────────────────────────────
+const SendDetailModal = ({ user, mode, month, onClose }) => {
+    const [loading, setLoading]       = useState(true);
+    const [logs, setLogs]             = useState([]);
+    const [total, setTotal]           = useState(0);
+    const [page, setPage]             = useState(1);
+    const [expandedIds, setExpandedIds] = useState(new Set());
+
+    const LIMIT = 10;
+
+    const load = useCallback(async (p = 1) => {
+        setLoading(true);
+        try {
+            const params = { mode, page: p };
+            if (mode === 'month') params.month = month;
+            const res = await api.users.adminUserSendDetail(user.id, params);
+            setLogs(res.logs || []);
+            setTotal(res.total || 0);
+            setPage(p);
+        } catch (e) {
+            console.error('Failed to load user send detail', e);
+        }
+        setLoading(false);
+    }, [user.id, mode, month]);
+
+    useEffect(() => { load(1); }, [load]);
+
+    const toggleExpand = (id) => {
+        setExpandedIds(prev => {
+            const next = new Set(prev);
+            next.has(id) ? next.delete(id) : next.add(id);
+            return next;
+        });
+    };
+
+    const totalPages = Math.ceil(total / LIMIT);
+
+    return (
+        <div style={{
+            position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 9999, padding: '1.5rem', backdropFilter: 'blur(4px)'
+        }}>
+            <div style={{
+                backgroundColor: 'var(--bg-primary)', border: '1px solid var(--border-color)',
+                borderRadius: '12px', width: '100%', maxWidth: '900px',
+                maxHeight: '90vh', display: 'flex', flexDirection: 'column'
+            }}>
+                {/* Header */}
+                <div style={{
+                    padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border-color)',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0
+                }}>
+                    <div>
+                        <h2 style={{ fontSize: '1.2rem', fontWeight: '700', marginBottom: '2px' }}>
+                            {user.name || user.username} 的發送明細
+                        </h2>
+                        <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                            @{user.username}　共 {total} 筆發送記錄
+                            {total === 0 && <span style={{ color: '#f59e0b' }}>　（此功能上線前的歷史發送無記錄）</span>}
+                        </p>
+                    </div>
+                    <button onClick={onClose} style={{
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        color: 'var(--text-secondary)', padding: '4px'
+                    }}><X size={22} /></button>
+                </div>
+
+                {/* Body */}
+                <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem 1.5rem' }}>
+                    {loading ? (
+                        <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>載入中...</div>
+                    ) : logs.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
+                            <Info size={40} style={{ marginBottom: '1rem', opacity: 0.4 }} />
+                            <p>此時間段無發送記錄</p>
+                            <p style={{ fontSize: '0.8rem', marginTop: '0.5rem' }}>此功能上線（2026/4/3）後的發送才會記錄</p>
+                        </div>
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            {logs.map(log => {
+                                const expanded = expandedIds.has(log.id);
+                                const varDefaults = log.variable_defaults || {};
+                                const hasVars = Object.keys(varDefaults).length > 0;
+                                return (
+                                    <div key={log.id} style={{
+                                        border: '1px solid var(--border-color)', borderRadius: '10px',
+                                        overflow: 'hidden'
+                                    }}>
+                                        {/* Log header row */}
+                                        <div style={{
+                                            padding: '1rem 1.25rem',
+                                            backgroundColor: 'rgba(255,255,255,0.03)',
+                                            display: 'flex', gap: '1.5rem', alignItems: 'flex-start',
+                                            flexWrap: 'wrap'
+                                        }}>
+                                            <div style={{ minWidth: '160px' }}>
+                                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '3px' }}>發送時間</div>
+                                                <div style={{ fontWeight: '600', fontSize: '0.9rem' }}>{formatDate(log.created_at)}</div>
+                                            </div>
+                                            <div style={{ minWidth: '140px' }}>
+                                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '3px' }}>範本</div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.9rem' }}>
+                                                    <FileText size={13} /> {log.template_name || '（已刪除）'}
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '3px' }}>發送狀況</div>
+                                                <div style={{ fontSize: '0.9rem' }}>
+                                                    <span style={{ color: 'var(--success)', fontWeight: '600' }}>{log.recipients_sent}</span>
+                                                    <span style={{ color: 'var(--text-secondary)' }}> / {log.recipients_selected} 筆成功</span>
+                                                </div>
+                                            </div>
+                                            {/* XLS info */}
+                                            <div style={{ flexGrow: 1 }}>
+                                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '5px' }}>XLS 匯入</div>
+                                                {log.has_xls_import ? (
+                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', fontSize: '0.78rem' }}>
+                                                        <span style={{ padding: '2px 8px', borderRadius: '4px', backgroundColor: 'rgba(16,185,129,0.12)', color: 'var(--success)' }}>
+                                                            ✓ 匹配 {log.xls_matched_count} 位
+                                                        </span>
+                                                        {log.xls_not_matched_count > 0 && (
+                                                            <span style={{ padding: '2px 8px', borderRadius: '4px', backgroundColor: 'rgba(245,158,11,0.12)', color: '#d97706' }}>
+                                                                ⚠ 手動選取 {log.xls_not_matched_count} 位
+                                                            </span>
+                                                        )}
+                                                        {log.xls_not_found_count > 0 && (
+                                                            <span title={(log.xls_not_found_names_arr || []).join('、')} style={{ padding: '2px 8px', borderRadius: '4px', backgroundColor: 'rgba(239,68,68,0.12)', color: 'var(--danger)', cursor: 'help' }}>
+                                                                ✗ 找不到 {log.xls_not_found_count} 筆名稱
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>無（手動選取）</span>
+                                                )}
+                                                {log.has_xls_import && log.xls_not_found_count > 0 && (log.xls_not_found_names_arr || []).length > 0 && (
+                                                    <div style={{ marginTop: '5px', fontSize: '0.75rem', color: 'var(--danger)', opacity: 0.85 }}>
+                                                        找不到：{log.xls_not_found_names_arr.join('、')}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            {/* Expand toggle */}
+                                            <button
+                                                onClick={() => toggleExpand(log.id)}
+                                                style={{
+                                                    background: 'none', border: '1px solid var(--border-color)',
+                                                    borderRadius: '6px', padding: '4px 10px',
+                                                    color: 'var(--text-secondary)', cursor: 'pointer',
+                                                    display: 'flex', alignItems: 'center', gap: '4px',
+                                                    fontSize: '0.8rem', whiteSpace: 'nowrap'
+                                                }}
+                                            >
+                                                {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                                收件者 ({log.recipients?.length || 0})
+                                            </button>
+                                        </div>
+
+                                        {/* Variable defaults */}
+                                        {hasVars && (
+                                            <div style={{
+                                                padding: '0.6rem 1.25rem',
+                                                borderTop: '1px solid var(--border-color)',
+                                                backgroundColor: 'rgba(59,130,246,0.04)',
+                                                fontSize: '0.78rem', color: 'var(--text-secondary)'
+                                            }}>
+                                                <span style={{ marginRight: '8px' }}>全域變數：</span>
+                                                {Object.entries(varDefaults).map(([k, v]) => (
+                                                    <span key={k} style={{ marginRight: '12px' }}>
+                                                        <span style={{ color: 'var(--text-primary)' }}>{k}</span> = <span style={{ color: 'var(--accent-primary)' }}>{v || '（空）'}</span>
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {/* Recipients table */}
+                                        {expanded && (
+                                            <div style={{ borderTop: '1px solid var(--border-color)', overflowX: 'auto' }}>
+                                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                                                    <thead>
+                                                        <tr style={{ backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                                                            <th style={{ ...detailTh, width: '130px' }}>客戶名稱</th>
+                                                            <th style={{ ...detailTh, width: '80px', textAlign: 'center' }}>來源</th>
+                                                            <th style={detailTh}>變數值</th>
+                                                            <th style={detailTh}>發送內容</th>
+                                                            <th style={{ ...detailTh, width: '60px', textAlign: 'center' }}>狀態</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {(log.recipients || []).map(r => {
+                                                            const vars = r.final_variables || {};
+                                                            return (
+                                                                <tr key={r.id} style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                                                                    <td style={{ ...detailTd, fontWeight: '500' }}>
+                                                                        {r.customer_name || '—'}
+                                                                        <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
+                                                                            {r.line_uid}
+                                                                        </div>
+                                                                    </td>
+                                                                    <td style={{ ...detailTd, textAlign: 'center' }}>
+                                                                        {r.is_xls_matched ? (
+                                                                            <span style={{ padding: '2px 6px', borderRadius: '4px', backgroundColor: 'rgba(16,185,129,0.12)', color: 'var(--success)', fontSize: '0.72rem' }}>XLS</span>
+                                                                        ) : (
+                                                                            <span style={{ padding: '2px 6px', borderRadius: '4px', backgroundColor: 'rgba(245,158,11,0.12)', color: '#d97706', fontSize: '0.72rem' }}>手動</span>
+                                                                        )}
+                                                                    </td>
+                                                                    <td style={detailTd}>
+                                                                        {Object.keys(vars).length > 0 ? (
+                                                                            Object.entries(vars).map(([k, v]) => (
+                                                                                <span key={k} style={{ display: 'inline-block', marginRight: '8px', whiteSpace: 'nowrap' }}>
+                                                                                    <span style={{ color: 'var(--text-secondary)' }}>{k}=</span>
+                                                                                    <span style={{ color: 'var(--accent-primary)' }}>{v || '（空）'}</span>
+                                                                                </span>
+                                                                            ))
+                                                                        ) : <span style={{ color: 'var(--text-secondary)' }}>—</span>}
+                                                                    </td>
+                                                                    <td style={{ ...detailTd, color: 'var(--text-secondary)', maxWidth: '220px' }}>
+                                                                        <div style={{
+                                                                            whiteSpace: 'pre-wrap', lineHeight: '1.4',
+                                                                            maxHeight: '80px', overflowY: 'auto',
+                                                                            fontSize: '0.75rem'
+                                                                        }}>
+                                                                            {r.message_content}
+                                                                        </div>
+                                                                    </td>
+                                                                    <td style={{ ...detailTd, textAlign: 'center' }}>
+                                                                        {r.sent_success
+                                                                            ? <CheckCircle size={15} color="var(--success)" />
+                                                                            : <XCircle size={15} color="var(--danger)" />}
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                    <div style={{
+                        padding: '0.75rem 1.5rem', borderTop: '1px solid var(--border-color)',
+                        display: 'flex', justifyContent: 'center', gap: '0.5rem', flexShrink: 0
+                    }}>
+                        {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                            <button key={p} onClick={() => load(p)} style={{
+                                padding: '4px 10px', borderRadius: '6px',
+                                border: '1px solid var(--border-color)',
+                                backgroundColor: p === page ? 'var(--accent-primary)' : 'transparent',
+                                color: p === page ? 'white' : 'var(--text-primary)',
+                                cursor: 'pointer', fontWeight: p === page ? '600' : '400'
+                            }}>{p}</button>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+const detailTh = {
+    padding: '0.5rem 0.75rem', textAlign: 'left', fontSize: '0.75rem',
+    color: 'var(--text-secondary)', fontWeight: '600', whiteSpace: 'nowrap',
+    borderBottom: '1px solid var(--border-color)'
+};
+const detailTd = { padding: '0.6rem 0.75rem', verticalAlign: 'top' };
+
+// ── Suspend Modal ─────────────────────────────────────────────────────────────
 const SuspendModal = ({ user, onClose, onSave }) => {
     const [notice, setNotice] = useState(user.suspend_notice || '');
     const [saving, setSaving] = useState(false);
@@ -95,6 +368,9 @@ const UserSendStats = () => {
 
     // Suspend modal
     const [suspendTarget, setSuspendTarget] = useState(null);
+
+    // Detail modal
+    const [detailTarget, setDetailTarget] = useState(null);
 
     const loadStats = useCallback(async () => {
         setLoading(true);
@@ -217,7 +493,11 @@ const UserSendStats = () => {
                     <span>
                         查詢期間：<strong style={{ color: 'var(--text-primary)' }}>{periodLabel}</strong>
                         　共 <strong style={{ color: 'var(--text-primary)' }}>{users.length}</strong> 位使用者
-                        {!showAll && <span style={{ color: '#f59e0b' }}>（僅顯示上個月有發送的使用者）</span>}
+                        {!showAll && <span style={{ color: '#f59e0b' }}>
+                        {mode === 'last_month' ? '（僅顯示上個月有發送的使用者）'
+                            : mode === 'month' ? `（僅顯示 ${month} 有發送的使用者）`
+                            : '（僅顯示曾發送過訊息的使用者）'}
+                    </span>}
                     </span>
                 </div>
             )}
@@ -247,6 +527,7 @@ const UserSendStats = () => {
                                     )}
                                     <th style={{ ...thStyle, textAlign: 'center' }}>上次發送</th>
                                     <th style={{ ...thStyle, textAlign: 'center' }}>操作</th>
+                                    <th style={{ ...thStyle, textAlign: 'center' }}>明細</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -362,6 +643,23 @@ const UserSendStats = () => {
                                                 <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>-</span>
                                             )}
                                         </td>
+
+                                        {/* Detail */}
+                                        <td style={{ ...tdStyle, textAlign: 'center' }}>
+                                            <button
+                                                onClick={() => setDetailTarget(u)}
+                                                title="查看發送明細"
+                                                style={{
+                                                    padding: '5px 12px', borderRadius: '6px',
+                                                    border: '1px solid var(--border-color)',
+                                                    backgroundColor: 'rgba(59,130,246,0.08)',
+                                                    color: 'var(--accent-primary)', cursor: 'pointer', fontSize: '0.8rem',
+                                                    display: 'inline-flex', alignItems: 'center', gap: '4px'
+                                                }}
+                                            >
+                                                <Eye size={13} /> 明細
+                                            </button>
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -376,6 +674,16 @@ const UserSendStats = () => {
                     user={suspendTarget}
                     onClose={() => setSuspendTarget(null)}
                     onSave={handleSuspend}
+                />
+            )}
+
+            {/* Send detail modal */}
+            {detailTarget && (
+                <SendDetailModal
+                    user={detailTarget}
+                    mode={mode}
+                    month={month}
+                    onClose={() => setDetailTarget(null)}
                 />
             )}
         </div>

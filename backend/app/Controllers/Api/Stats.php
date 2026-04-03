@@ -63,7 +63,7 @@ class Stats extends ResourceController
      * Query params:
      *   mode      = last_month | month | last30 | all (default: last_month)
      *   month     = YYYY-MM (used when mode=month)
-     *   show_all  = 0|1 (0 = only show users who sent last month, default: 0)
+     *   show_all  = 0|1 (0 = only show users who sent in the selected period, default: 0)
      */
     public function adminUserStats()
     {
@@ -78,9 +78,20 @@ class Stats extends ResourceController
 
         $db = \Config\Database::connect();
 
-        // Determine last month boundaries (used for filter & default mode)
+        // Determine last month boundaries (used for last_month mode)
         $lastMonthStart = date('Y-m-01 00:00:00', strtotime('first day of last month'));
         $lastMonthEnd   = date('Y-m-t 23:59:59',  strtotime('last day of last month'));
+
+        // Compute period label early (used in empty-state response too)
+        if ($mode === 'all') {
+            $periodLabel = '全部時間';
+        } elseif ($mode === 'month' && preg_match('/^\d{4}-\d{2}$/', $month)) {
+            $periodLabel = date('Y年m月', strtotime($month . '-01'));
+        } elseif ($mode === 'last30') {
+            $periodLabel = '最近30次';
+        } else {
+            $periodLabel = date('Y年m月', strtotime('first day of last month'));
+        }
 
         // Base: all non-admin users
         $usersQuery = $db->table('users')
@@ -88,18 +99,29 @@ class Stats extends ResourceController
             ->where('role !=', 'admin');
 
         if (!$showAll) {
-            // Only users who sent last month
-            $activeRows = $db->table('messages')
+            // Filter: only users who sent messages in the selected period
+            $filterQuery = $db->table('messages')
                 ->select('DISTINCT user_id')
-                ->where('sender', 'system')
-                ->where('created_at >=', $lastMonthStart)
-                ->where('created_at <=', $lastMonthEnd)
-                ->get()->getResultArray();
-            $activeIds = array_column($activeRows, 'user_id');
+                ->where('sender', 'system');
+
+            if ($mode === 'last_month') {
+                $filterQuery->where('created_at >=', $lastMonthStart)
+                            ->where('created_at <=', $lastMonthEnd);
+            } elseif ($mode === 'month' && preg_match('/^\d{4}-\d{2}$/', $month)) {
+                $filterStart = $month . '-01 00:00:00';
+                $filterEnd   = date('Y-m-t 23:59:59', strtotime($filterStart));
+                $filterQuery->where('created_at >=', $filterStart)
+                            ->where('created_at <=', $filterEnd);
+            }
+            // For 'last30' and 'all': no date filter — show any user who ever sent
+
+            $activeRows = $filterQuery->get()->getResultArray();
+            $activeIds  = array_column($activeRows, 'user_id');
+
             if (empty($activeIds)) {
                 return $this->respond([
                     'users'        => [],
-                    'period_label' => date('Y年m月', strtotime('first day of last month')),
+                    'period_label' => $periodLabel,
                     'mode'         => $mode,
                     'show_all'     => $showAll
                 ]);
@@ -177,23 +199,89 @@ class Stats extends ResourceController
             $user['is_suspended'] = (bool)($user['is_suspended'] ?? false);
         }
 
-        // Overall period label
-        $periodLabel = 'last_month';
-        if ($mode === 'all') {
-            $periodLabel = '全部時間';
-        } elseif ($mode === 'month' && preg_match('/^\d{4}-\d{2}$/', $month)) {
-            $periodLabel = date('Y年m月', strtotime($month . '-01'));
-        } elseif ($mode === 'last30') {
-            $periodLabel = '最近30次';
-        } else {
-            $periodLabel = date('Y年m月', strtotime('first day of last month'));
-        }
-
         return $this->respond([
             'users'        => $users,
             'period_label' => $periodLabel,
             'mode'         => $mode,
             'show_all'     => $showAll
+        ]);
+    }
+
+    /**
+     * Get detailed send logs for a specific user (admin only)
+     * GET admin/user-send-detail/{userId}?mode=...&month=...&page=1
+     */
+    public function userSendDetail($userId = null)
+    {
+        $currentUser = $this->getCurrentUser();
+        if (!$currentUser || $currentUser['role'] !== 'admin') {
+            return $this->failForbidden('只有管理員可以存取');
+        }
+
+        if (!$userId) return $this->failNotFound();
+
+        $db = \Config\Database::connect();
+
+        $targetUser = $db->table('users')
+            ->select('id, username, name')
+            ->where('id', $userId)
+            ->get()->getRowArray();
+        if (!$targetUser) return $this->failNotFound('使用者不存在');
+
+        $mode  = $this->request->getGet('mode')  ?? 'last_month';
+        $month = $this->request->getGet('month') ?? '';
+        $page  = max(1, (int)($this->request->getGet('page') ?? 1));
+        $limit = 10;
+        $offset = ($page - 1) * $limit;
+
+        // Determine date range
+        $start = null;
+        $end   = null;
+        if ($mode === 'last_month') {
+            $start = date('Y-m-01 00:00:00', strtotime('first day of last month'));
+            $end   = date('Y-m-t 23:59:59',  strtotime('last day of last month'));
+        } elseif ($mode === 'month' && preg_match('/^\d{4}-\d{2}$/', $month)) {
+            $start = $month . '-01 00:00:00';
+            $end   = date('Y-m-t 23:59:59', strtotime($start));
+        }
+        // last30 / all: no date filter
+
+        $query = $db->table('send_logs')->where('user_id', $userId);
+        if ($start) {
+            $query->where('created_at >=', $start)->where('created_at <=', $end);
+        }
+
+        $total = $query->countAllResults(false);
+        $logs  = $query->orderBy('created_at', 'DESC')->limit($limit, $offset)->get()->getResultArray();
+
+        foreach ($logs as &$log) {
+            // Decode JSON fields
+            $log['variable_defaults']     = json_decode($log['variable_defaults_json'] ?? '{}', true) ?: (object)[];
+            $log['xls_not_found_names_arr'] = json_decode($log['xls_not_found_names'] ?? '[]', true) ?: [];
+
+            // Load recipients
+            $recipients = $db->table('send_log_recipients')
+                ->where('send_log_id', $log['id'])
+                ->orderBy('id', 'ASC')
+                ->get()->getResultArray();
+            foreach ($recipients as &$r) {
+                $r['final_variables'] = json_decode($r['final_variables_json'] ?? '{}', true) ?: (object)[];
+                $r['is_xls_matched']  = (bool)$r['is_xls_matched'];
+                $r['sent_success']    = (bool)$r['sent_success'];
+            }
+            $log['recipients']       = $recipients;
+            $log['has_xls_import']   = (bool)$log['has_xls_import'];
+
+            // Cleanup raw JSON fields from response
+            unset($log['variable_defaults_json'], $log['xls_not_found_names']);
+        }
+
+        return $this->respond([
+            'user'  => $targetUser,
+            'logs'  => $logs,
+            'total' => $total,
+            'page'  => $page,
+            'limit' => $limit,
         ]);
     }
 }

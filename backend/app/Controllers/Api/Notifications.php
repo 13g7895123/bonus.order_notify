@@ -67,6 +67,7 @@ class Notifications extends ResourceController
 
         $sentCount = 0;
         $errors = [];
+        $logRecipients = [];
 
         // Global variables from request
         $globalVariables = $json->variables ?? [];
@@ -77,6 +78,7 @@ class Notifications extends ResourceController
 
             // Per-recipient variables
             $recipientVariables = $recipient->variables ?? $recipient['variables'] ?? [];
+            $isFromXls          = (bool)($recipient->is_from_xls ?? $recipient['is_from_xls'] ?? false);
 
             // Merge variables: Recipient overrides Global
             $finalVariables = array_merge((array)$globalVariables, (array)$recipientVariables);
@@ -110,12 +112,52 @@ class Notifications extends ResourceController
                     'created_at' => date('Y-m-d H:i:s')
                 ]);
 
-                if ($lineResult['success']) {
+                $success = $lineResult['success'];
+                if ($success) {
                     $sentCount++;
                 } else {
                     $errors[] = "Failed to send to {$customer['custom_name']}: {$lineResult['error']}";
                 }
+
+                // Collect data for send_log_recipients
+                $logRecipients[] = [
+                    'customer_id'          => $customer['id'],
+                    'customer_name'        => $displayName,
+                    'line_uid'             => $customer['line_uid'],
+                    'final_variables_json' => json_encode((array)$recipientVariables, JSON_UNESCAPED_UNICODE),
+                    'is_xls_matched'       => $isFromXls ? 1 : 0,
+                    'message_content'      => $content,
+                    'sent_success'         => $success ? 1 : 0,
+                    'created_at'           => date('Y-m-d H:i:s'),
+                ];
             }
+        }
+
+        // Create send_log record
+        $xlsImport = $json->xls_import ?? null;
+        $db->table('send_logs')->insert([
+            'user_id'               => $userId,
+            'template_id'           => $template['id'],
+            'template_name'         => $template['name'],
+            'template_content'      => $template['content'],
+            'variable_defaults_json' => json_encode((array)$globalVariables, JSON_UNESCAPED_UNICODE),
+            'recipients_selected'   => count($recipients),
+            'recipients_sent'       => $sentCount,
+            'has_xls_import'        => ($xlsImport && !empty($xlsImport->has_import)) ? 1 : 0,
+            'xls_matched_count'     => (int)($xlsImport->matched_count ?? 0),
+            'xls_not_matched_count' => (int)($xlsImport->not_matched_customer_count ?? 0),
+            'xls_not_found_count'   => (int)($xlsImport->not_found_count ?? 0),
+            'xls_not_found_names'   => json_encode($xlsImport->not_found_names ?? [], JSON_UNESCAPED_UNICODE),
+            'created_at'            => date('Y-m-d H:i:s'),
+        ]);
+        $sendLogId = $db->insertID();
+
+        // Batch insert send_log_recipients
+        if (!empty($logRecipients)) {
+            foreach ($logRecipients as &$r) {
+                $r['send_log_id'] = $sendLogId;
+            }
+            $db->table('send_log_recipients')->insertBatch($logRecipients);
         }
 
         return $this->respond([

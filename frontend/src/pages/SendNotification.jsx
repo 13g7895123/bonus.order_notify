@@ -176,9 +176,10 @@ const SendNotification = () => {
         // 2. Others use global manual values
 
         const recipients = [];
+        const matchedIds = new Set((importData?.matched || []).map(m => Number(m.id)));
 
         selectedCustomers.forEach(cid => {
-            const recipient = { id: cid, variables: {} };
+            const recipient = { id: cid, variables: {}, is_from_xls: matchedIds.has(Number(cid)) };
 
             // Check if this customer is in import matched list (ensure ID match)
             const imported = importData?.matched?.find(m => Number(m.id) === Number(cid));
@@ -197,11 +198,21 @@ const SendNotification = () => {
             recipients.push(recipient);
         });
 
+        // Build XLS import metadata for audit log
+        const xlsImport = importData ? {
+            has_import: true,
+            matched_count: importData.matched?.length || 0,
+            not_matched_customer_count: selectedCustomers.filter(cid => !matchedIds.has(Number(cid))).length,
+            not_found_count: importData.not_found?.length || 0,
+            not_found_names: importData.not_found || []
+        } : { has_import: false };
+
         try {
             const res = await api.notifications.send({
                 template_id: selectedTemplate,
                 recipients: recipients,
-                variables: variableValues // Fallback global checks
+                variables: variableValues,
+                xls_import: xlsImport
             });
             if (res.suspended) {
                 setResult({ success: false, message: res.notice, suspended: true });
