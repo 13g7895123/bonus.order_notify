@@ -5,6 +5,97 @@ import { useAuth } from '../context/AuthContext';
 import { FileText, Users, Send, MessageSquare, AlertTriangle, Shield, TrendingUp, TrendingDown, Minus, UserCheck, Clock, CheckCircle, XCircle, Pause } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
+// ── Send Trend Section ────────────────────────────────────────────────────────
+const SendTrendSection = ({ trend }) => {
+    const [tab, setTab] = useState('daily');
+    const BAR_MAX_H = 100;
+
+    const datasets = {
+        daily:   (trend?.daily   || []).map(d => ({ label: d.date_fmt,  count: d.count })),
+        weekly:  (trend?.weekly  || []).map(d => ({ label: `${d.week_label}\n${d.week_start_fmt}~${d.week_end_fmt}`, count: d.count })),
+        monthly: (trend?.monthly || []).map(d => ({ label: d.month,     count: d.count })),
+    };
+
+    const data = datasets[tab] || [];
+    const max  = Math.max(...data.map(d => d.count), 1);
+    const isDaily  = tab === 'daily';
+    const isWeekly = tab === 'weekly';
+    const itemW = isDaily ? 28 : (isWeekly ? 80 : 68);
+    const gap   = isDaily ? 3  : 8;
+
+    const tabDefs = [
+        { key: 'daily',   label: '每日（本月）' },
+        { key: 'weekly',  label: '每週（本月）' },
+        { key: 'monthly', label: '近12個月' },
+    ];
+
+    return (
+        <Card style={{ marginBottom: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <span style={{ fontWeight: '700', fontSize: '1rem', color: 'var(--text-primary)' }}>發送趨勢分析</span>
+                <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                    {tabDefs.map(t => (
+                        <button key={t.key} onClick={() => setTab(t.key)} style={{
+                            padding: '4px 12px', border: 'none', cursor: 'pointer', borderRadius: '6px',
+                            backgroundColor: tab === t.key ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
+                            color: tab === t.key ? '#fff' : 'var(--text-secondary)',
+                            fontSize: '0.78rem', fontWeight: '600',
+                        }}>{t.label}</button>
+                    ))}
+                </div>
+            </div>
+
+            {data.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>此期間無發送記錄</div>
+            ) : (
+                <div style={{ overflowX: 'auto' }}>
+                    {/* Bar area */}
+                    <div style={{
+                        display: 'flex', alignItems: 'flex-end', gap: `${gap}px`,
+                        paddingTop: '20px', paddingBottom: '2px',
+                        borderBottom: '1px solid var(--border-color)',
+                        minWidth: `${data.length * (itemW + gap)}px`,
+                    }}>
+                        {data.map((d, i) => {
+                            const bh = Math.max(Math.round((d.count / max) * BAR_MAX_H), d.count > 0 ? 4 : 1);
+                            return (
+                                <div key={i} style={{ width: `${itemW}px`, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                    <span style={{
+                                        fontSize: isDaily ? '0.6rem' : '0.68rem',
+                                        color: 'rgb(59,130,246)', fontWeight: '600',
+                                        marginBottom: '3px', lineHeight: 1,
+                                        visibility: d.count > 0 ? 'visible' : 'hidden',
+                                    }}>{d.count}</span>
+                                    <div style={{
+                                        width: '100%', height: `${bh}px`,
+                                        backgroundColor: d.count > 0 ? 'rgba(59,130,246,0.65)' : 'rgba(255,255,255,0.06)',
+                                        borderRadius: '3px 3px 0 0',
+                                    }} />
+                                </div>
+                            );
+                        })}
+                    </div>
+                    {/* Label area */}
+                    <div style={{
+                        display: 'flex', gap: `${gap}px`, paddingTop: '5px',
+                        minWidth: `${data.length * (itemW + gap)}px`,
+                    }}>
+                        {data.map((d, i) => (
+                            <div key={i} style={{
+                                width: `${itemW}px`, flexShrink: 0,
+                                textAlign: 'center',
+                                fontSize: isDaily ? '0.6rem' : '0.62rem',
+                                color: 'var(--text-secondary)',
+                                lineHeight: 1.3, whiteSpace: 'pre',
+                            }}>{d.label}</div>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </Card>
+    );
+};
+
 // ── Admin Dashboard ───────────────────────────────────────────────────────────
 const AdminDashboard = () => {
     const [stats, setStats] = useState(null);
@@ -92,8 +183,11 @@ const AdminDashboard = () => {
                 </Card>
             </div>
 
+            {/* Send trend */}
+            <SendTrendSection trend={stats?.send_trend} />
+
             {/* Per-user table */}
-            <Card title="所有使用者狀況">
+            <Card title="所有使用者狀況（本月或上月有發送記錄）">
                 <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
                         <thead>

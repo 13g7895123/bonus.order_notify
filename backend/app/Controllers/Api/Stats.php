@@ -373,6 +373,67 @@ class Stats extends ResourceController
             unset($u['message_quota']);
         }
 
+        // Filter: only show users who sent this month or last month
+        $users = array_values(array_filter($users, function ($u) {
+            return $u['msgs_this_month'] > 0 || $u['msgs_last_month'] > 0;
+        }));
+
+        // ── Send trend: daily (this month) ───────────────────────────────────
+        $dailySends = $db->query("
+            SELECT DATE(created_at) AS `date`, COUNT(*) AS `count`
+            FROM messages
+            WHERE sender = 'system'
+              AND created_at >= ?
+              AND created_at <= ?
+            GROUP BY DATE(created_at)
+            ORDER BY `date` ASC
+        ", [$startOfMonth, $endOfMonth])->getResultArray();
+
+        foreach ($dailySends as &$d) {
+            $d['date_fmt'] = substr($d['date'], 8); // day number only: "01"-"31"
+            $d['count']    = (int)$d['count'];
+        }
+        unset($d);
+
+        // ── Send trend: weekly (this month) ──────────────────────────────────
+        $weeklySends = $db->query("
+            SELECT YEARWEEK(created_at, 1) AS yw,
+                   MIN(DATE(created_at))   AS week_start,
+                   MAX(DATE(created_at))   AS week_end,
+                   COUNT(*)               AS `count`
+            FROM messages
+            WHERE sender = 'system'
+              AND created_at >= ?
+              AND created_at <= ?
+            GROUP BY YEARWEEK(created_at, 1)
+            ORDER BY yw ASC
+        ", [$startOfMonth, $endOfMonth])->getResultArray();
+
+        foreach ($weeklySends as $idx => &$w) {
+            $w['week_label']     = 'W' . ($idx + 1);
+            $w['week_start_fmt'] = date('m/d', strtotime($w['week_start']));
+            $w['week_end_fmt']   = date('m/d', strtotime($w['week_end']));
+            $w['count']          = (int)$w['count'];
+            unset($w['yw']);
+        }
+        unset($w);
+
+        // ── Send trend: monthly (last 12 months) ─────────────────────────────
+        $twelveMonthsAgo = date('Y-m-01 00:00:00', strtotime('-11 months'));
+        $monthlySends = $db->query("
+            SELECT DATE_FORMAT(created_at, '%Y-%m') AS `month`, COUNT(*) AS `count`
+            FROM messages
+            WHERE sender = 'system'
+              AND created_at >= ?
+            GROUP BY DATE_FORMAT(created_at, '%Y-%m')
+            ORDER BY `month` ASC
+        ", [$twelveMonthsAgo])->getResultArray();
+
+        foreach ($monthlySends as &$mo) {
+            $mo['count'] = (int)$mo['count'];
+        }
+        unset($mo);
+
         return $this->respond([
             'period'    => date('Y年m月'),
             'platform'  => [
@@ -390,6 +451,11 @@ class Stats extends ResourceController
             ],
             'top_senders' => $topSenders,
             'users'        => $users,
+            'send_trend'   => [
+                'daily'   => $dailySends,
+                'weekly'  => $weeklySends,
+                'monthly' => $monthlySends,
+            ],
         ]);
     }
 }
