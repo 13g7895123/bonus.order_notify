@@ -134,6 +134,8 @@ class Users extends ResourceController
         if (isset($json->line_channel_secret)) $data['line_channel_secret'] = $json->line_channel_secret;
         if (isset($json->line_channel_access_token)) $data['line_channel_access_token'] = $json->line_channel_access_token;
         if (isset($json->message_quota)) $data['message_quota'] = (int)$json->message_quota;
+        if (isset($json->is_suspended)) $data['is_suspended'] = $json->is_suspended ? 1 : 0;
+        if (isset($json->suspend_notice)) $data['suspend_notice'] = $json->suspend_notice ?: null;
 
         // If password provided, hash it
         if (isset($json->password) && !empty($json->password)) {

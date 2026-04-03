@@ -20,6 +20,20 @@ class Notifications extends ResourceController
 
         $userId = (int)$user['id'];
 
+        // Check if user is suspended
+        if (!empty($user['is_suspended'])) {
+            $notice = !empty($user['suspend_notice'])
+                ? $user['suspend_notice']
+                : '您的帳號目前已被暫停使用，請聯絡管理員。';
+            return $this->response->setStatusCode(403)->setJSON([
+                'status'    => 403,
+                'error'     => 403,
+                'suspended' => true,
+                'notice'    => $notice,
+                'messages'  => ['error' => $notice]
+            ]);
+        }
+
         $json = $this->request->getJSON();
         if (!$json || !isset($json->template_id)) {
             return $this->failValidationErrors('template_id is required');

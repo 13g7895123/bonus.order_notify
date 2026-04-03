@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, FileText, Users, Send, Settings, LogOut, MessageCircle, Shield, Activity, UserPlus, UserX, Webhook } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, Send, Settings, LogOut, MessageCircle, Shield, Activity, UserPlus, UserX, Webhook, BarChart2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 
@@ -22,6 +22,7 @@ const Sidebar = () => {
         // 管理員專用功能（不在模擬狀態時才顯示）
         ...(user?.role === 'admin' && !user?.impersonating ? [
             { path: '/users', icon: <Shield size={20} />, label: '使用者管理' },
+            { path: '/user-send-stats', icon: <BarChart2 size={20} />, label: '發送統計' },
             { path: '/activity-logs', icon: <Activity size={20} />, label: '操作紀錄' },
             { path: '/webhook-logs', icon: <Webhook size={20} />, label: 'Webhook 記錄' }
         ] : []),

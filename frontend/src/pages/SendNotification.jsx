@@ -167,7 +167,11 @@ const SendNotification = () => {
                 recipients: recipients,
                 variables: variableValues // Fallback global checks
             });
-            setResult({ success: res.success, message: res.message });
+            if (res.suspended) {
+                setResult({ success: false, message: res.notice, suspended: true });
+            } else {
+                setResult({ success: res.success, message: res.message });
+            }
         } catch (e) {
             setResult({ success: false, message: '發送失敗' });
         }
@@ -650,17 +654,26 @@ const SendNotification = () => {
                         {result && (
                             <div style={{
                                 padding: '1rem',
-                                backgroundColor: result.success ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                                color: result.success ? 'var(--success)' : 'var(--danger)',
-                                borderLeft: `4px solid ${result.success ? 'var(--success)' : 'var(--danger)'}`,
+                                backgroundColor: result.suspended
+                                    ? 'rgba(234,179,8,0.1)'
+                                    : result.success ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                                color: result.suspended
+                                    ? '#b45309'
+                                    : result.success ? 'var(--success)' : 'var(--danger)',
+                                borderLeft: `4px solid ${result.suspended ? '#f59e0b' : result.success ? 'var(--success)' : 'var(--danger)'}`,
                                 borderRadius: '4px',
                                 marginBottom: '1.5rem',
                                 display: 'flex',
-                                alignItems: 'center',
+                                alignItems: 'flex-start',
                                 gap: '12px'
                             }}>
-                                {result.success ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
-                                <span>{result.message}</span>
+                                {result.success ? <CheckCircle size={20} /> : <AlertCircle size={20} style={{ flexShrink: 0, marginTop: '2px' }} />}
+                                <div>
+                                    {result.suspended && (
+                                        <div style={{ fontWeight: '600', marginBottom: '4px' }}>帳號已暫停使用</div>
+                                    )}
+                                    <span>{result.message}</span>
+                                </div>
                             </div>
                         )}
 

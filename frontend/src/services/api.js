@@ -223,7 +223,18 @@ export const api = {
             const params = new URLSearchParams({ type, page, limit }).toString();
             return (await fetchWithAuth(`${API_URL}/users/${id}/details?${params}`)).json();
         },
-        testLineConfig: async (id) => (await fetchWithAuth(`${API_URL}/users/${id}/test-line-config`)).json()
+        testLineConfig: async (id) => (await fetchWithAuth(`${API_URL}/users/${id}/test-line-config`)).json(),
+        setSuspend: async (id, isSuspended, suspendNotice = '') => {
+            const res = await fetchWithAuth(`${API_URL}/users/${id}`, {
+                method: 'PUT',
+                body: JSON.stringify({ is_suspended: isSuspended, suspend_notice: suspendNotice })
+            });
+            return res.json();
+        },
+        adminSendStats: async (params = {}) => {
+            const query = new URLSearchParams(params).toString();
+            return (await fetchWithAuth(`${API_URL}/admin/user-send-stats${query ? '?' + query : ''}`)).json();
+        }
     },
     activityLogs: {
         list: async (params = {}) => {
