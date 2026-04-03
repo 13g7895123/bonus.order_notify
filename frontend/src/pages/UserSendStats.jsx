@@ -8,10 +8,10 @@ import {
 } from 'lucide-react';
 
 const MODES = [
+    { value: 'all',        label: '全部' },
     { value: 'last_month', label: '上個月' },
     { value: 'month',      label: '指定月份' },
     { value: 'last30',     label: '最近30次' },
-    { value: 'all',        label: '全部' },
 ];
 
 // ── Send Detail Modal ─────────────────────────────────────────────────────────
@@ -356,7 +356,7 @@ const SuspendModal = ({ user, onClose, onSave }) => {
 };
 
 const UserSendStats = () => {
-    const [mode, setMode] = useState('last_month');
+    const [mode, setMode] = useState('all');
     const [month, setMonth] = useState(() => {
         const d = new Date();
         d.setMonth(d.getMonth() - 1);
@@ -681,7 +681,7 @@ const UserSendStats = () => {
             {detailTarget && (
                 <SendDetailModal
                     user={detailTarget}
-                    mode={mode}
+                    mode="all"
                     month={month}
                     onClose={() => setDetailTarget(null)}
                 />

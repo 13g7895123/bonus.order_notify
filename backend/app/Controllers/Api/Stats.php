@@ -101,7 +101,7 @@ class Stats extends ResourceController
         if (!$showAll) {
             // Filter: only users who sent messages in the selected period
             $filterQuery = $db->table('messages')
-                ->select('DISTINCT user_id')
+                ->select('DISTINCT user_id', false)
                 ->where('sender', 'system');
 
             if ($mode === 'last_month') {
