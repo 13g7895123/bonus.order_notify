@@ -1,6 +1,20 @@
 // Use relative path - Nginx proxy will forward /api to backend
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
+import Swal from 'sweetalert2';
+
+const showSessionExpired = async () => {
+    await Swal.fire({
+        icon: 'warning',
+        title: '登入已過期',
+        text: '請重新登入以繼續使用。',
+        confirmButtonText: '前往登入',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+    });
+    window.location.href = '/login';
+};
+
 // Common fetch options with credentials for cookies
 const fetchOptions = {
     credentials: 'include' // include cookies in requests
@@ -61,12 +75,14 @@ const fetchWithAuth = async (url, options = {}) => {
                 } else {
                     isRefreshing = false;
                     // Redirect to login
-                    window.location.href = '/login';
+                    showSessionExpired();
                     throw new Error('Session expired');
                 }
             } catch (error) {
                 isRefreshing = false;
-                window.location.href = '/login';
+                if (error.message !== 'Session expired') {
+                    showSessionExpired();
+                }
                 throw error;
             }
         } else {
