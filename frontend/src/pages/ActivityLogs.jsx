@@ -11,6 +11,7 @@ const ActivityLogs = () => {
     const [loading, setLoading] = useState(false);
     const [pagination, setPagination] = useState({ page: 1, per_page: 50, total: 0, total_pages: 0 });
     const [filters, setFilters] = useState({ user_id: '', method: '', endpoint: '', date_from: '', date_to: '' });
+    const [excludeAdmin, setExcludeAdmin] = useState(true);
     const [showFilters, setShowFilters] = useState(false);
     const [userList, setUserList] = useState([]);
 
@@ -25,7 +26,7 @@ const ActivityLogs = () => {
         api.users.list().then(data => setUserList(Array.isArray(data) ? data : (data?.data || [])));
     }, []);
 
-    const loadLogs = async (page = 1) => {
+    const loadLogs = async (page = 1, excludeAdminOverride = null) => {
         setLoading(true);
         try {
             const params = { page, per_page: 50 };
@@ -34,6 +35,8 @@ const ActivityLogs = () => {
             if (filters.endpoint) params.endpoint = filters.endpoint;
             if (filters.date_from) params.date_from = filters.date_from;
             if (filters.date_to) params.date_to = filters.date_to;
+            const shouldExcludeAdmin = excludeAdminOverride !== null ? excludeAdminOverride : excludeAdmin;
+            if (shouldExcludeAdmin) params.exclude_admin = 1;
 
             const data = await api.activityLogs.list(params);
             setLogs(data.data || []);
@@ -83,7 +86,14 @@ const ActivityLogs = () => {
 
     const clearFilters = () => {
         setFilters({ user_id: '', method: '', endpoint: '', date_from: '', date_to: '' });
-        setTimeout(() => loadLogs(1), 0);
+        setExcludeAdmin(true);
+        setTimeout(() => loadLogs(1, true), 0);
+    };
+
+    const toggleExcludeAdmin = () => {
+        const newVal = !excludeAdmin;
+        setExcludeAdmin(newVal);
+        loadLogs(1, newVal);
     };
 
     const getMethodColor = (method) => {
@@ -116,6 +126,13 @@ const ActivityLogs = () => {
                     <p style={{ color: 'var(--text-secondary)' }}>檢視所有 API 請求的紀錄。點擊錯誤紀錄可以查看詳細的請求與回應內容。</p>
                 </div>
                 <div className="flex gap-2">
+                    <Button
+                        onClick={toggleExcludeAdmin}
+                        variant={excludeAdmin ? 'primary' : 'secondary'}
+                        title={excludeAdmin ? '目前已排除管理員，點擊以顯示全部' : '目前顯示全部，點擊以排除管理員'}
+                    >
+                        {excludeAdmin ? '排除管理員：開' : '排除管理員：關'}
+                    </Button>
                     <Button onClick={() => setShowFilters(!showFilters)} variant="secondary">
                         <Filter size={18} /> 篩選
                     </Button>

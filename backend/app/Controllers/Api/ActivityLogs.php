@@ -33,9 +33,17 @@ class ActivityLogs extends ResourceController
         $endpoint = $this->request->getGet('endpoint');
         $dateFrom = $this->request->getGet('date_from');
         $dateTo = $this->request->getGet('date_to');
+        $excludeAdmin = $this->request->getGet('exclude_admin');
 
         $builder = $db->table('activity_logs');
 
+        if ($excludeAdmin) {
+            $adminIds = $db->table('users')->select('id')->where('role', 'admin')->get()->getResultArray();
+            $adminIdList = array_column($adminIds, 'id');
+            if (!empty($adminIdList)) {
+                $builder->whereNotIn('user_id', $adminIdList);
+            }
+        }
         if ($userId) {
             $builder->where('user_id', $userId);
         }
