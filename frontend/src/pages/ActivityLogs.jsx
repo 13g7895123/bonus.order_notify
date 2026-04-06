@@ -10,8 +10,9 @@ const ActivityLogs = () => {
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(false);
     const [pagination, setPagination] = useState({ page: 1, per_page: 50, total: 0, total_pages: 0 });
-    const [filters, setFilters] = useState({ method: '', endpoint: '', date_from: '', date_to: '' });
+    const [filters, setFilters] = useState({ user_id: '', method: '', endpoint: '', date_from: '', date_to: '' });
     const [showFilters, setShowFilters] = useState(false);
+    const [userList, setUserList] = useState([]);
 
     // Detail modal state
     const [showDetail, setShowDetail] = useState(false);
@@ -21,12 +22,14 @@ const ActivityLogs = () => {
     useEffect(() => {
         loadLogs();
         loadStats();
+        api.users.list().then(data => setUserList(Array.isArray(data) ? data : (data?.data || [])));
     }, []);
 
     const loadLogs = async (page = 1) => {
         setLoading(true);
         try {
             const params = { page, per_page: 50 };
+            if (filters.user_id) params.user_id = filters.user_id;
             if (filters.method) params.method = filters.method;
             if (filters.endpoint) params.endpoint = filters.endpoint;
             if (filters.date_from) params.date_from = filters.date_from;
@@ -79,7 +82,7 @@ const ActivityLogs = () => {
     };
 
     const clearFilters = () => {
-        setFilters({ method: '', endpoint: '', date_from: '', date_to: '' });
+        setFilters({ user_id: '', method: '', endpoint: '', date_from: '', date_to: '' });
         setTimeout(() => loadLogs(1), 0);
     };
 
@@ -155,7 +158,20 @@ const ActivityLogs = () => {
             {/* Filters */}
             {showFilters && (
                 <Card style={{ marginBottom: '1.5rem', padding: '1rem' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '1rem', alignItems: 'end' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '1rem', alignItems: 'end' }}>
+                        <div>
+                            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>使用者</label>
+                            <select
+                                value={filters.user_id}
+                                onChange={e => setFilters({ ...filters, user_id: e.target.value })}
+                                style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}
+                            >
+                                <option value=''>全部</option>
+                                {userList.map(u => (
+                                    <option key={u.id} value={u.id}>{u.username}</option>
+                                ))}
+                            </select>
+                        </div>
                         <div>
                             <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Method</label>
                             <select
