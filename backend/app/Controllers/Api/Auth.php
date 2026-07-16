@@ -35,6 +35,9 @@ class Auth extends ResourceController
             return $this->failUnauthorized('帳號已停用');
         }
 
+        // Auto-suspend if usage period has expired
+        $user = $this->applyExpiryIfNeeded($user, $db);
+
         // Update last login time
         $db->table('users')->where('id', $user['id'])->update([
             'last_login_at' => date('Y-m-d H:i:s')

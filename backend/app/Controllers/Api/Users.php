@@ -24,11 +24,14 @@ class Users extends ResourceController
         $db = \Config\Database::connect();
 
         $users = $db->table('users')
-            ->select('users.id, users.username, users.name, users.role, users.webhook_key, users.is_active, users.can_create_users, users.line_channel_secret, users.message_quota, users.created_at, users.last_login_at')
+            ->select('users.id, users.username, users.name, users.role, users.webhook_key, users.is_active, users.is_suspended, users.suspend_notice, users.expires_at, users.can_create_users, users.line_channel_secret, users.message_quota, users.created_at, users.last_login_at')
             ->get()->getResultArray();
 
         // Add statistics for each user
         foreach ($users as &$user) {
+            // Auto-suspend users whose usage period has expired
+            $user = $this->applyExpiryIfNeeded($user, $db);
+
             $user['stats'] = [
                 'customers' => $db->table('customers')->where('user_id', $user['id'])->countAllResults(),
                 'templates' => $db->table('templates')->where('user_id', $user['id'])->countAllResults(),
@@ -139,6 +142,7 @@ class Users extends ResourceController
         if (isset($json->message_quota)) $data['message_quota'] = (int)$json->message_quota;
         if (isset($json->is_suspended)) $data['is_suspended'] = $json->is_suspended ? 1 : 0;
         if (isset($json->suspend_notice)) $data['suspend_notice'] = $json->suspend_notice ?: null;
+        if (isset($json->expires_at)) $data['expires_at'] = $json->expires_at ?: null;
 
         // If password provided, hash it
         if (isset($json->password) && !empty($json->password)) {

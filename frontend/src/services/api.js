@@ -252,6 +252,13 @@ export const api = {
             });
             return res.json();
         },
+        setExpiry: async (id, expiresAt) => {
+            const res = await fetchWithAuth(`${API_URL}/users/${id}`, {
+                method: 'PUT',
+                body: JSON.stringify({ expires_at: expiresAt || null })
+            });
+            return res.json();
+        },
         adminSendStats: async (params = {}) => {
             const query = new URLSearchParams(params).toString();
             return (await fetchWithAuth(`${API_URL}/admin/user-send-stats${query ? '?' + query : ''}`)).json();

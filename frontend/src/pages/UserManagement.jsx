@@ -3,7 +3,7 @@ import { api } from '../services/api';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
-import { Plus, Trash2, Edit2, Users, Key, Copy, Check, RefreshCw, Shield, User, MessageSquare, FileText, UserCheck, Eye, X, ChevronLeft, ChevronRight, Activity, LogIn, Zap, AlertCircle, CheckCircle, Info, AlertTriangle, Clock } from 'lucide-react';
+import { Plus, Trash2, Edit2, Users, Key, Copy, Check, RefreshCw, Shield, User, MessageSquare, FileText, UserCheck, Eye, X, ChevronLeft, ChevronRight, Activity, LogIn, Zap, AlertCircle, CheckCircle, Info, AlertTriangle, Clock, CalendarClock, Save } from 'lucide-react';
 
 const UserManagement = () => {
     const [users, setUsers] = useState([]);
@@ -39,6 +39,14 @@ const UserManagement = () => {
     const [showLineTest, setShowLineTest] = useState(false);
     const [lineTestResult, setLineTestResult] = useState(null);
     const [lineTestLoading, setLineTestLoading] = useState(false);
+
+    // Expiry management modal states
+    const [showExpiry, setShowExpiry] = useState(false);
+    const [expiryDrafts, setExpiryDrafts] = useState({});
+    const [expirySavingId, setExpirySavingId] = useState(null);
+    const [defaultNotice, setDefaultNotice] = useState('');
+    const [defaultNoticeSaving, setDefaultNoticeSaving] = useState(false);
+    const [defaultNoticeSaved, setDefaultNoticeSaved] = useState(false);
 
     useEffect(() => {
         loadUsers();
@@ -225,6 +233,70 @@ const UserManagement = () => {
         setLineTestLoading(false);
     };
 
+    // Convert a datetime string (from DB, 'YYYY-MM-DD HH:mm:ss') to the value
+    // expected by <input type="datetime-local">
+    const toDatetimeLocal = (value) => {
+        if (!value) return '';
+        const d = new Date(value.replace(' ', 'T'));
+        if (isNaN(d.getTime())) return '';
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+
+    const handleOpenExpiry = async () => {
+        setShowExpiry(true);
+        const drafts = {};
+        users.forEach(u => {
+            drafts[u.id] = toDatetimeLocal(u.expires_at);
+        });
+        setExpiryDrafts(drafts);
+        try {
+            const settings = await api.settings.get();
+            setDefaultNotice(settings.expiry_default_notice || '');
+        } catch (e) {
+            console.error('Failed to load default notice', e);
+        }
+    };
+
+    const handleSaveExpiry = async (userId) => {
+        setExpirySavingId(userId);
+        try {
+            const value = expiryDrafts[userId];
+            await api.users.setExpiry(userId, value ? value.replace('T', ' ') + ':00' : null);
+            await loadUsers();
+        } catch (e) {
+            console.error('Failed to save expiry', e);
+            alert('儲存到期時間失敗');
+        }
+        setExpirySavingId(null);
+    };
+
+    const handleClearExpiry = async (userId) => {
+        setExpirySavingId(userId);
+        try {
+            await api.users.setExpiry(userId, null);
+            setExpiryDrafts(prev => ({ ...prev, [userId]: '' }));
+            await loadUsers();
+        } catch (e) {
+            console.error('Failed to clear expiry', e);
+            alert('清除到期時間失敗');
+        }
+        setExpirySavingId(null);
+    };
+
+    const handleSaveDefaultNotice = async () => {
+        setDefaultNoticeSaving(true);
+        try {
+            await api.settings.update({ expiry_default_notice: defaultNotice });
+            setDefaultNoticeSaved(true);
+            setTimeout(() => setDefaultNoticeSaved(false), 2000);
+        } catch (e) {
+            console.error('Failed to save default notice', e);
+            alert('儲存預設提示訊息失敗');
+        }
+        setDefaultNoticeSaving(false);
+    };
+
     const getStatusIcon = (status) => {
         switch (status) {
             case 'success':
@@ -265,9 +337,14 @@ const UserManagement = () => {
                     <p style={{ color: 'var(--text-secondary)' }}>管理平台使用者，每位使用者可設定獨立的 LINE Bot。</p>
                 </div>
                 {!isEditing && (
-                    <Button onClick={() => { resetForm(); setIsEditing(true); }}>
-                        <Plus size={18} /> 新增使用者
-                    </Button>
+                    <div className="flex gap-2">
+                        <Button variant="secondary" onClick={handleOpenExpiry}>
+                            <CalendarClock size={18} /> 使用期限管理
+                        </Button>
+                        <Button onClick={() => { resetForm(); setIsEditing(true); }}>
+                            <Plus size={18} /> 新增使用者
+                        </Button>
+                    </div>
                 )}
             </div>
 
@@ -1158,6 +1235,186 @@ const UserManagement = () => {
                             <Button onClick={() => setShowLineTest(false)}>
                                 關閉
                             </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Expiry Management Modal */}
+            {showExpiry && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 1000,
+                    padding: '2rem'
+                }}>
+                    <div style={{
+                        backgroundColor: 'var(--bg-primary)',
+                        borderRadius: '12px',
+                        width: '100%',
+                        maxWidth: '900px',
+                        maxHeight: '90vh',
+                        overflow: 'auto',
+                        position: 'relative'
+                    }}>
+                        {/* Header */}
+                        <div style={{
+                            padding: '1.5rem',
+                            borderBottom: '1px solid var(--border-color)',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            position: 'sticky',
+                            top: 0,
+                            backgroundColor: 'var(--bg-primary)',
+                            zIndex: 1
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                <CalendarClock size={24} style={{ color: 'var(--accent-primary)' }} />
+                                <div>
+                                    <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>使用期限管理</h2>
+                                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '4px' }}>
+                                        設定使用者的到期時間，時間到後帳號將自動被停用（不含管理員）。
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setShowExpiry(false)}
+                                style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '8px' }}
+                            >
+                                <X size={24} />
+                            </button>
+                        </div>
+
+                        {/* Default notice setting */}
+                        <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border-color)' }}>
+                            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                                預設到期提示訊息（帳號到期自動停用時顯示給使用者）
+                            </label>
+                            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
+                                <textarea
+                                    value={defaultNotice}
+                                    onChange={e => setDefaultNotice(e.target.value)}
+                                    rows={2}
+                                    placeholder="例如：您的帳號使用期限已到期，請聯絡管理員續期。"
+                                    style={{
+                                        flex: 1,
+                                        padding: '0.75rem',
+                                        borderRadius: '8px',
+                                        border: '1px solid var(--border-color)',
+                                        backgroundColor: 'var(--bg-secondary)',
+                                        color: 'var(--text-primary)',
+                                        fontSize: '0.9rem',
+                                        resize: 'vertical',
+                                        boxSizing: 'border-box'
+                                    }}
+                                />
+                                <Button onClick={handleSaveDefaultNotice} disabled={defaultNoticeSaving} style={{ whiteSpace: 'nowrap' }}>
+                                    <Save size={16} /> {defaultNoticeSaving ? '儲存中...' : '儲存'}
+                                </Button>
+                            </div>
+                            {defaultNoticeSaved && (
+                                <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: 'var(--success)' }}>已儲存！</div>
+                            )}
+                        </div>
+
+                        {/* User list with expiry pickers */}
+                        <div style={{ padding: '1.5rem' }}>
+                            {users.filter(u => u.role !== 'admin').length === 0 ? (
+                                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>
+                                    尚無非管理員使用者。
+                                </div>
+                            ) : (
+                                <div style={{ display: 'grid', gap: '0.75rem' }}>
+                                    {users.filter(u => u.role !== 'admin').map(u => {
+                                        const isExpired = u.expires_at && new Date(u.expires_at.replace(' ', 'T')).getTime() <= Date.now();
+                                        return (
+                                            <div key={u.id} style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '1rem',
+                                                padding: '1rem',
+                                                backgroundColor: 'var(--bg-secondary)',
+                                                borderRadius: '8px',
+                                                flexWrap: 'wrap'
+                                            }}>
+                                                <div style={{ minWidth: '160px', flex: '1 1 160px' }}>
+                                                    <div style={{ fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                        {u.name || u.username}
+                                                        {u.is_suspended == 1 && (
+                                                            <span style={{
+                                                                fontSize: '0.7rem', padding: '2px 8px', borderRadius: '4px',
+                                                                backgroundColor: 'rgba(239, 68, 68, 0.2)', color: 'var(--danger)'
+                                                            }}>
+                                                                已停用
+                                                            </span>
+                                                        )}
+                                                        {!u.is_suspended && isExpired && (
+                                                            <span style={{
+                                                                fontSize: '0.7rem', padding: '2px 8px', borderRadius: '4px',
+                                                                backgroundColor: 'rgba(245, 158, 11, 0.2)', color: '#f59e0b'
+                                                            }}>
+                                                                即將停用
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>@{u.username}</div>
+                                                </div>
+
+                                                <input
+                                                    type="datetime-local"
+                                                    value={expiryDrafts[u.id] || ''}
+                                                    onChange={e => setExpiryDrafts(prev => ({ ...prev, [u.id]: e.target.value }))}
+                                                    style={{
+                                                        padding: '0.5rem 0.75rem',
+                                                        borderRadius: '8px',
+                                                        border: '1px solid var(--border-color)',
+                                                        backgroundColor: 'var(--bg-primary)',
+                                                        color: 'var(--text-primary)',
+                                                        fontSize: '0.9rem'
+                                                    }}
+                                                />
+
+                                                <Button
+                                                    size="sm"
+                                                    onClick={() => handleSaveExpiry(u.id)}
+                                                    disabled={expirySavingId === u.id}
+                                                >
+                                                    <Save size={14} /> {expirySavingId === u.id ? '儲存中...' : '儲存'}
+                                                </Button>
+
+                                                {u.expires_at && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="secondary"
+                                                        onClick={() => handleClearExpiry(u.id)}
+                                                        disabled={expirySavingId === u.id}
+                                                    >
+                                                        清除期限
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <div style={{
+                            padding: '1rem 1.5rem',
+                            borderTop: '1px solid var(--border-color)',
+                            display: 'flex',
+                            justifyContent: 'flex-end'
+                        }}>
+                            <Button onClick={() => setShowExpiry(false)}>關閉</Button>
                         </div>
                     </div>
                 </div>

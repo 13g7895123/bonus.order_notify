@@ -27,8 +27,8 @@ const LineChart = ({ labels = [], series = [] }) => {
 
     return (
         <svg viewBox={`0 0 ${VW} ${VH}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
-            {gridVals.map(v => (
-                <g key={v}>
+            {gridVals.map((v, idx) => (
+                <g key={idx}>
                     <line x1={PAD.left} y1={yAt(v)} x2={VW - PAD.right} y2={yAt(v)}
                           stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
                     <text x={PAD.left - 5} y={yAt(v)} textAnchor="end" fontSize="10"
