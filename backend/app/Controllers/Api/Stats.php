@@ -268,6 +268,8 @@ class Stats extends ResourceController
                 $r['final_variables'] = json_decode($r['final_variables_json'] ?? '{}', true) ?: (object)[];
                 $r['is_xls_matched']  = (bool)$r['is_xls_matched'];
                 $r['sent_success']    = (bool)$r['sent_success'];
+                $r['http_code']       = isset($r['http_code']) ? (int)$r['http_code'] : null;
+                // error_message / error_detail pass through as-is (null when sent_success)
             }
             $log['recipients']       = $recipients;
             $log['has_xls_import']   = (bool)$log['has_xls_import'];

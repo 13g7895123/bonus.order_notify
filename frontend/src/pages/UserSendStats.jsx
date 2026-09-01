@@ -199,6 +199,7 @@ const SendDetailModal = ({ user, mode, month, onClose }) => {
                                                             <th style={detailTh}>變數值</th>
                                                             <th style={detailTh}>發送內容</th>
                                                             <th style={{ ...detailTh, width: '60px', textAlign: 'center' }}>狀態</th>
+                                                            <th style={{ ...detailTh, width: '260px' }}>失敗原因</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody>
@@ -242,6 +243,24 @@ const SendDetailModal = ({ user, mode, month, onClose }) => {
                                                                         {r.sent_success
                                                                             ? <CheckCircle size={15} color="var(--success)" />
                                                                             : <XCircle size={15} color="var(--danger)" />}
+                                                                    </td>
+                                                                    <td style={{ ...detailTd, color: 'var(--danger)', fontSize: '0.72rem' }}>
+                                                                        {r.sent_success ? (
+                                                                            <span style={{ color: 'var(--text-secondary)' }}>—</span>
+                                                                        ) : (
+                                                                            <div title={r.error_detail || ''} style={{ whiteSpace: 'pre-wrap', lineHeight: '1.35', maxHeight: '80px', overflowY: 'auto' }}>
+                                                                                {r.http_code != null && (
+                                                                                    <span style={{
+                                                                                        display: 'inline-block', marginRight: '6px', padding: '1px 5px',
+                                                                                        borderRadius: '4px', backgroundColor: 'rgba(239,68,68,0.12)',
+                                                                                        fontFamily: 'monospace', fontWeight: '600'
+                                                                                    }}>
+                                                                                        {r.http_code === 0 ? '連線失敗' : `HTTP ${r.http_code}`}
+                                                                                    </span>
+                                                                                )}
+                                                                                {r.error_message || '未知錯誤'}
+                                                                            </div>
+                                                                        )}
                                                                     </td>
                                                                 </tr>
                                                             );

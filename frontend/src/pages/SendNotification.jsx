@@ -218,7 +218,11 @@ const SendNotification = () => {
                 setResult({ success: false, message: res.notice, suspended: true });
             } else {
                 const msg = res.message || res.messages?.error || '發送失敗，請確認 LINE 設定是否正確';
-                setResult({ success: res.success ?? false, message: msg });
+                setResult({
+                    success: res.success ?? false,
+                    message: msg,
+                    errors: Array.isArray(res.errors) ? res.errors : [],
+                });
             }
         } catch (e) {
             setResult({ success: false, message: '發送失敗' });
@@ -749,6 +753,16 @@ const SendNotification = () => {
                                         <div style={{ fontWeight: '600', marginBottom: '4px' }}>帳號已暫停使用</div>
                                     )}
                                     <span>{result.message}</span>
+                                    {result.errors && result.errors.length > 0 && (
+                                        <ul style={{ margin: '8px 0 0', paddingLeft: '18px', fontSize: '0.8rem', lineHeight: '1.5' }}>
+                                            {result.errors.slice(0, 10).map((err, i) => (
+                                                <li key={i}>{err}</li>
+                                            ))}
+                                            {result.errors.length > 10 && (
+                                                <li>…還有 {result.errors.length - 10} 筆，詳見發送紀錄</li>
+                                            )}
+                                        </ul>
+                                    )}
                                 </div>
                             </div>
                         )}

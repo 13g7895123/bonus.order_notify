@@ -60,6 +60,10 @@ class Notifications extends ResourceController
             return $this->fail('LINE API 尚未設定，請先至個人設定頁面填寫 Channel Access Token', 400);
         }
 
+        // Pre-flight: a LINE Channel Access Token is a long JWT-like string.
+        // A value this short is almost certainly a Channel Secret pasted by mistake.
+        $tokenLooksInvalid = strlen(trim($accessToken)) < 100;
+
         // Verify template belongs to this user
         $template = $db->table('templates')->where('id', $json->template_id)->where('user_id', $userId)->get()->getRowArray();
 
@@ -149,10 +153,18 @@ class Notifications extends ResourceController
                 ]);
 
                 $success = $lineResult['success'];
+
+                // If the token is structurally invalid, make every failure say so explicitly.
+                $errMsg    = $lineResult['error'] ?? null;
+                $errDetail = $lineResult['detail'] ?? null;
+                if (!$success && $tokenLooksInvalid) {
+                    $errMsg = 'Channel Access Token 疑似填錯（長度過短，可能貼成 Channel Secret）。' . ($errMsg ? ' 原始錯誤：' . $errMsg : '');
+                }
+
                 if ($success) {
                     $sentCount++;
                 } else {
-                    $errors[] = "Failed to send to {$customer['custom_name']}: {$lineResult['error']}";
+                    $errors[] = "Failed to send to {$customer['custom_name']}: {$errMsg}";
                 }
 
                 // Collect data for send_log_recipients
@@ -164,6 +176,9 @@ class Notifications extends ResourceController
                     'is_xls_matched'       => $isFromXls ? 1 : 0,
                     'message_content'      => $content,
                     'sent_success'         => $success ? 1 : 0,
+                    'http_code'            => $lineResult['http_code'] ?? null,
+                    'error_message'        => $success ? null : mb_substr((string)$errMsg, 0, 500),
+                    'error_detail'         => $success ? null : mb_substr((string)$errDetail, 0, 5000),
                     'created_at'           => date('Y-m-d H:i:s'),
                 ];
             }
@@ -210,10 +225,28 @@ class Notifications extends ResourceController
             $message .= "，略過 $skippedCount 筆（今日已發送相同內容）";
         }
 
+        // Summarise the dominant failure reason so the caller knows what to fix.
+        $failedCount = 0;
+        $reasonCount = [];
+        foreach ($logRecipients as $r) {
+            if (!$r['sent_success']) {
+                $failedCount++;
+                $key = 'HTTP ' . ($r['http_code'] ?? '?');
+                $reasonCount[$key] = ($reasonCount[$key] ?? 0) + 1;
+            }
+        }
+        if ($failedCount > 0) {
+            arsort($reasonCount);
+            $topReason = array_key_first($reasonCount);
+            $message .= "，$failedCount 筆失敗（主要為 {$topReason}，詳見發送紀錄）";
+        }
+
         return $this->respond([
             'success'        => $sentCount > 0 || $skippedCount > 0,
             'sent_count'     => $sentCount,
             'skipped_count'  => $skippedCount,
+            'failed_count'   => $failedCount,
+            'failure_reasons' => $reasonCount,
             'message'        => $message,
             'errors'         => $errors
         ]);
@@ -462,6 +495,12 @@ class Notifications extends ResourceController
 
     /**
      * Send message via LINE Messaging API
+     *
+     * Always returns a diagnostic-rich array:
+     *   success   bool
+     *   http_code int   (0 = connection/curl failure, never reached LINE)
+     *   error     string short human-readable reason
+     *   detail    string full response body / curl error (for error_detail column)
      */
     private function sendLineMessage(string $accessToken, string $lineUserId, string $message): array
     {
@@ -485,16 +524,63 @@ class Notifications extends ResourceController
         ]);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 15);
 
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $response  = curl_exec($ch);
+        $httpCode  = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlErrNo = curl_errno($ch);
+        $curlErr   = curl_error($ch);
         curl_close($ch);
 
-        if ($httpCode === 200) {
-            return ['success' => true];
-        } else {
-            $errorBody = json_decode($response, true);
-            return ['success' => false, 'error' => $errorBody['message'] ?? 'Unknown error'];
+        // ── Connection-level failure: request never reached LINE ─────────────
+        if ($response === false || $curlErrNo !== 0) {
+            return [
+                'success'   => false,
+                'http_code' => 0,
+                'error'     => '無法連線至 LINE API（後端主機對外網路異常）：' . ($curlErr ?: 'unknown curl error'),
+                'detail'    => "curl_errno={$curlErrNo}; curl_error={$curlErr}",
+            ];
         }
+
+        if ($httpCode === 200) {
+            return [
+                'success'   => true,
+                'http_code' => 200,
+                'error'     => null,
+                'detail'    => null,
+            ];
+        }
+
+        // ── LINE returned a non-200 response ────────────────────────────────
+        $body    = json_decode($response, true);
+        $apiMsg  = $body['message'] ?? 'Unknown error';
+        // LINE often nests field-level problems in details[].property / details[].message
+        if (!empty($body['details']) && is_array($body['details'])) {
+            $parts = [];
+            foreach ($body['details'] as $d) {
+                $parts[] = trim(($d['property'] ?? '') . ' ' . ($d['message'] ?? ''));
+            }
+            if ($parts) {
+                $apiMsg .= '（' . implode('; ', $parts) . '）';
+            }
+        }
+
+        // Map the common status codes to an actionable hint.
+        $hint = match ($httpCode) {
+            400 => 'line_uid 無效或對方未加官方帳號為好友／已封鎖',
+            401 => 'Channel Access Token 無效、過期或被撤銷',
+            403 => '此 Channel 沒有推播權限（方案或權限設定問題）',
+            429 => '已達 LINE 推播訊息額度上限',
+            500, 502, 503 => 'LINE 伺服器暫時異常，可稍後重試',
+            default => '',
+        };
+
+        return [
+            'success'   => false,
+            'http_code' => $httpCode,
+            'error'     => "HTTP {$httpCode}: {$apiMsg}" . ($hint ? " — {$hint}" : ''),
+            'detail'    => is_string($response) ? mb_substr($response, 0, 2000) : json_encode($body, JSON_UNESCAPED_UNICODE),
+        ];
     }
 }
