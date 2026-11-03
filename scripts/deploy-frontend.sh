@@ -53,7 +53,22 @@ echo ""
 # Step 1: Build new version
 echo "► 步驟 1: 建置新版本 (frontend-$NEW_COLOR)..."
 echo "-------------------------------------------"
-docker compose build frontend-$NEW_COLOR
+# 正常約 30 秒；設上限避免主機資源不足時卡死整個部署（逾時則不切換流量，舊版持續服務）
+BUILD_TIMEOUT="${FRONTEND_BUILD_TIMEOUT:-5m}"
+code=0
+timeout --kill-after=15s "$BUILD_TIMEOUT" docker compose build frontend-$NEW_COLOR || code=$?
+if [ "$code" != "0" ]; then
+    echo ""
+    if [ "$code" = "124" ] || [ "$code" = "137" ]; then
+        echo "✗ 建置超過 $BUILD_TIMEOUT 被中止，請檢查主機資源："
+        free -h || true
+        df -h . || true
+    else
+        echo "✗ 建置失敗 (exit $code)"
+    fi
+    echo "流量未切換，目前仍由 frontend-$OLD_COLOR 提供服務"
+    exit "$code"
+fi
 
 # Step 2: Start new container
 echo ""

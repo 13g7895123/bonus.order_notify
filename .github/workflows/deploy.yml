@@ -19,16 +19,23 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
+          command_timeout: 10m
           script: |
+            set -e
             cd ${{ secrets.PROJECT_PATH }}
-            
+
             echo "=== 拉取最新程式碼 ==="
             git pull origin ${{ github.ref_name }}
-            
-            echo "=== 執行前端部署 ==="
-            bash scripts/deploy-frontend.sh
-            
+
+            # 後端程式碼是 volume 掛載，pull 後立即生效，所以先讓 DB schema 跟上
             echo "=== 執行資料庫遷移 ==="
             bash scripts/migrate.sh
-            
+
+            echo "=== 主機資源（供 build 卡住時診斷） ==="
+            free -h || true
+            df -h . || true
+
+            echo "=== 執行前端部署 ==="
+            bash scripts/deploy-frontend.sh
+
             echo "=== 部署完成 ==="
