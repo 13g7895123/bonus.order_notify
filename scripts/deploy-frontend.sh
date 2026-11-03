@@ -119,7 +119,11 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
-        
+
+        # 大量發送是同步逐筆呼叫 LINE API（約 0.3 秒/筆），預設 60 秒不夠
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+
         # CORS headers
         add_header 'Access-Control-Allow-Origin' '*' always;
         add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS' always;

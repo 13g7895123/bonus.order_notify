@@ -25,7 +25,14 @@ jobs:
             cd ${{ secrets.PROJECT_PATH }}
 
             echo "=== 拉取最新程式碼 ==="
+            OLD_HEAD=$(git rev-parse HEAD)
             git pull origin ${{ github.ref_name }}
+
+            # backend.conf 是單檔 bind mount，git 更新會換 inode，容器需重建才會讀到新設定
+            if ! git diff --quiet "$OLD_HEAD" HEAD -- docker/nginx/backend.conf; then
+              echo "=== backend.conf 有變更，重建 backend-nginx ==="
+              docker compose up -d --no-deps --force-recreate backend-nginx
+            fi
 
             # 後端程式碼是 volume 掛載，pull 後立即生效，所以先讓 DB schema 跟上
             echo "=== 執行資料庫遷移 ==="

@@ -20,6 +20,8 @@ class Notifications extends ResourceController
     {
         $this->sendReqId = substr(bin2hex(random_bytes(4)), 0, 8);
         $this->sendStart = microtime(true);
+        // Must stay in sync with nginx proxy_read_timeout / fastcgi_read_timeout (300s)
+        set_time_limit(300);
 
         try {
             return $this->doSend();
