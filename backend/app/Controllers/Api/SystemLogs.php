@@ -7,9 +7,8 @@ use CodeIgniter\RESTful\ResourceController;
 /**
  * Read-only operational log API, protected by a static token.
  *
- * Token: set LOG_API_TOKEN (>= 32 chars) in backend/.env (or the php container env).
- * Send it as header  "X-Log-Token: <token>"  or  "Authorization: Bearer <token>".
- * If LOG_API_TOKEN is not set the whole API is disabled (503).
+ * Token: created / refreshed / revoked by an admin in the back office (LogTokens controller,
+ * table log_api_tokens). Send it as header "X-Log-Token: nlog_..." or "Authorization: Bearer nlog_...".
  *
  * Endpoints:
  *   GET /api/system/logs/files                     list log files
@@ -25,20 +24,11 @@ class SystemLogs extends ResourceController
 {
     protected $format = 'json';
 
-    private const MIN_TOKEN_LENGTH = 32;
     private const MAX_LIMIT        = 2000;
     private const MAX_READ_BYTES   = 20 * 1024 * 1024; // per file
 
     private function authorize(): ?\CodeIgniter\HTTP\ResponseInterface
     {
-        $expected = (string) (env('LOG_API_TOKEN') ?: getenv('LOG_API_TOKEN') ?: '');
-        if (strlen($expected) < self::MIN_TOKEN_LENGTH) {
-            return $this->response->setStatusCode(503)->setJSON([
-                'status'  => 503,
-                'message' => 'Log API disabled: LOG_API_TOKEN not configured (min ' . self::MIN_TOKEN_LENGTH . ' chars).',
-            ]);
-        }
-
         $given = $this->request->getHeaderLine('X-Log-Token');
         if ($given === '') {
             $auth = $this->request->getHeaderLine('Authorization');
@@ -47,12 +37,38 @@ class SystemLogs extends ResourceController
             }
         }
 
-        if ($given === '' || !hash_equals($expected, $given)) {
-            log_message('warning', '[SystemLogs] Invalid token from ' . $this->request->getIPAddress());
-            return $this->response->setStatusCode(401)->setJSON(['status' => 401, 'message' => 'Invalid log token']);
+        $ip = $this->request->getIPAddress();
+        if ($given === '' || strpos($given, LogTokens::TOKEN_PREFIX) !== 0) {
+            log_message('warning', "[SystemLogs] Missing/malformed token from {$ip}");
+            return $this->unauthorized();
         }
 
+        $db  = \Config\Database::connect();
+        $row = $db->table('log_api_tokens')
+            ->where('token_hash', LogTokens::hashToken($given))
+            ->get()->getRowArray();
+
+        if (!$row || $row['revoked_at']) {
+            log_message('warning', "[SystemLogs] Rejected token prefix=" . substr($given, 0, 11)
+                . ($row ? " (revoked id={$row['id']})" : ' (unknown)') . " from {$ip}");
+            return $this->unauthorized();
+        }
+
+        $db->table('log_api_tokens')->where('id', $row['id'])
+            ->set('last_used_at', date('Y-m-d H:i:s'))
+            ->set('last_used_ip', $ip)
+            ->set('use_count', 'use_count + 1', false)
+            ->update();
+
         return null;
+    }
+
+    private function unauthorized(): \CodeIgniter\HTTP\ResponseInterface
+    {
+        return $this->response->setStatusCode(401)->setJSON([
+            'status'  => 401,
+            'message' => 'Invalid or revoked log token',
+        ]);
     }
 
     private function logDir(): string

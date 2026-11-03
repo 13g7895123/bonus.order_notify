@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, FileText, Users, Send, Settings, LogOut, MessageCircle, Shield, Activity, UserPlus, UserX, Webhook, BarChart2, AlertOctagon } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, Send, Settings, LogOut, MessageCircle, Shield, Activity, UserPlus, UserX, Webhook, BarChart2, AlertOctagon, KeyRound } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 
@@ -25,7 +25,8 @@ const Sidebar = () => {
             { path: '/user-send-stats', icon: <BarChart2 size={20} />, label: '發送統計' },
             { path: '/duplicate-send-logs', icon: <AlertOctagon size={20} />, label: '重複發送攔截' },
             { path: '/activity-logs', icon: <Activity size={20} />, label: '操作紀錄' },
-            { path: '/webhook-logs', icon: <Webhook size={20} />, label: 'Webhook 記錄' }
+            { path: '/webhook-logs', icon: <Webhook size={20} />, label: 'Webhook 記錄' },
+            { path: '/log-tokens', icon: <KeyRound size={20} />, label: 'Log API Token' }
         ] : []),
     ];
 

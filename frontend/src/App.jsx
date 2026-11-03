@@ -13,6 +13,7 @@ import UserManagement from './pages/UserManagement';
 import UserApplications from './pages/UserApplications';
 import InviteUsers from './pages/InviteUsers';
 import ActivityLogs from './pages/ActivityLogs';
+import LogApiTokens from './pages/LogApiTokens';
 import WebhookLogs from './pages/WebhookLogs';
 import UserSendStats from './pages/UserSendStats';
 import DuplicateSendLogs from './pages/DuplicateSendLogs';
@@ -51,6 +52,7 @@ function AppRoutes() {
       <Route path="/webhook-logs" element={<ProtectedRoute><WebhookLogs /></ProtectedRoute>} />
       <Route path="/user-send-stats" element={<ProtectedRoute><UserSendStats /></ProtectedRoute>} />
       <Route path="/duplicate-send-logs" element={<ProtectedRoute><DuplicateSendLogs /></ProtectedRoute>} />
+      <Route path="/log-tokens" element={<ProtectedRoute><LogApiTokens /></ProtectedRoute>} />
     </Routes>
   );
 }

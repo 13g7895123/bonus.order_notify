@@ -239,6 +239,12 @@ export const api = {
         getWebhookStats: async () => (await fetchWithAuth(`${API_URL}/line/webhook-logs/stats`)).json(),
         testWebhook: async (userId) => (await fetchWithAuth(`${API_URL}/line/webhook/test/${userId}`, { method: 'POST' })).json()
     },
+    logTokens: {
+        list: async () => (await fetchWithAuth(`${API_URL}/admin/log-tokens`)).json(),
+        create: async (name) => (await fetchWithAuth(`${API_URL}/admin/log-tokens`, { method: 'POST', body: JSON.stringify({ name }) })).json(),
+        refresh: async (id) => (await fetchWithAuth(`${API_URL}/admin/log-tokens/${id}/refresh`, { method: 'POST' })).json(),
+        revoke: async (id) => (await fetchWithAuth(`${API_URL}/admin/log-tokens/${id}/revoke`, { method: 'POST' })).json(),
+    },
     stats: {
         get: async () => (await fetchWithAuth(`${API_URL}/stats`)).json(),
         adminDashboard: async () => (await fetchWithAuth(`${API_URL}/admin/dashboard`)).json(),
