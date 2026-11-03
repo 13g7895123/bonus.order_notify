@@ -34,6 +34,11 @@ jobs:
               docker compose up -d --no-deps --force-recreate backend-nginx
             fi
 
+            # vendor/ 不在 git 內，容器啟動時才會 composer install；
+            # 部署時不重啟 php 容器，所以要在這裡讓 vendor 跟 composer.lock 同步
+            echo "=== 同步後端 composer 套件 ==="
+            docker compose exec -T php composer install --no-dev --optimize-autoloader --no-interaction
+
             # 後端程式碼是 volume 掛載，pull 後立即生效，所以先讓 DB schema 跟上
             echo "=== 執行資料庫遷移 ==="
             bash scripts/migrate.sh
