@@ -53,7 +53,8 @@ services:
     volumes:
       - ./backend:/var/www/html
     environment:
-      - CI_ENVIRONMENT=development
+      # 預設 production；本機開發請在根目錄 .env 設 CI_ENVIRONMENT=development
+      - CI_ENVIRONMENT=${CI_ENVIRONMENT:-production}
       - TZ=Asia/Taipei
     depends_on:
       - db
@@ -69,7 +70,8 @@ services:
       MYSQL_PASSWORD: ${DB_PASSWORD:-password}
       TZ: Asia/Taipei
     ports:
-      - "${DB_PORT:-3307}:3306"
+      # 只綁本機，避免資料庫直接暴露在外；遠端請用 SSH tunnel
+      - "${DB_BIND:-127.0.0.1}:${DB_PORT:-3307}:3306"
     volumes:
       - ./db_data:/var/lib/mysql
     restart: unless-stopped
@@ -81,7 +83,8 @@ services:
       PMA_HOST: db
       UPLOAD_LIMIT: 64M
     ports:
-      - "${PMA_PORT:-8082}:80"
+      # 只綁本機；遠端使用：ssh -L 8082:127.0.0.1:8082 <主機> 後開 http://localhost:8082
+      - "${PMA_BIND:-127.0.0.1}:${PMA_PORT:-8082}:80"
     depends_on:
       - db
     restart: unless-stopped
