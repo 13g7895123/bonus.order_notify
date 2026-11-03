@@ -34,6 +34,29 @@ jobs:
               docker compose up -d --no-deps --force-recreate backend-nginx
             fi
 
+            # 環境變數、port 綁定只在容器建立時讀取，compose 有變更時要重建才會生效
+            # （前端由藍綠部署腳本負責，這裡不動 frontend/proxy）
+            if ! git diff --quiet "$OLD_HEAD" HEAD -- docker-compose.yml; then
+              echo "=== docker-compose.yml 有變更，重建 php / db / phpmyadmin ==="
+              docker compose up -d --no-deps --no-build php db phpmyadmin
+              # php 容器的 entrypoint 會先 composer install 再 exec php-fpm，
+              # 等 PID 1 變成 php-fpm 才代表跑完，避免與下一步的 composer install 撞在一起
+              ready=0
+              for i in $(seq 1 90); do
+                if docker compose exec -T php sh -c 'grep -q php-fpm /proc/1/cmdline' 2>/dev/null \
+                  && docker compose exec -T db mysqladmin ping -h 127.0.0.1 --silent >/dev/null 2>&1; then
+                  ready=1; break
+                fi
+                sleep 2
+              done
+              if [ "$ready" != "1" ]; then
+                echo "✗ php 或 db 容器 180 秒內未就緒"
+                docker compose logs --tail=50 php db
+                exit 1
+              fi
+            fi
+            echo "=== 後端執行環境：$(docker compose exec -T php printenv CI_ENVIRONMENT) ==="
+
             # vendor/ 不在 git 內，容器啟動時才會 composer install；
             # 部署時不重啟 php 容器，所以要在這裡讓 vendor 跟 composer.lock 同步
             echo "=== 同步後端 composer 套件 ==="
