@@ -225,7 +225,11 @@ const SendNotification = () => {
                 });
             }
         } catch (e) {
-            setResult({ success: false, message: '發送失敗' });
+            console.error('[SendNotification] send failed', e);
+            const hint = e?.status === 504 || e?.status === 502
+                ? '（伺服器處理逾時，訊息可能已部分送出，請先到發送紀錄確認再重送）'
+                : '';
+            setResult({ success: false, message: `發送失敗：${e?.message || '網路錯誤'}${hint}` });
         }
 
         setSending(false);

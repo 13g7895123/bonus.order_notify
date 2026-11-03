@@ -158,7 +158,22 @@ export const api = {
         delete: async (id) => fetchWithAuth(`${API_URL}/customers/${id}`, { method: 'DELETE' })
     },
     notifications: {
-        send: async (data) => (await fetchWithAuth(`${API_URL}/notifications/send`, { method: 'POST', body: JSON.stringify(data) })).json(),
+        send: async (data) => {
+            const started = Date.now();
+            const res = await fetchWithAuth(`${API_URL}/notifications/send`, { method: 'POST', body: JSON.stringify(data) });
+            const text = await res.text();
+            try {
+                return JSON.parse(text);
+            } catch {
+                // Non-JSON response: usually nginx 502/504 (timeout) or a PHP fatal error page.
+                const elapsed = ((Date.now() - started) / 1000).toFixed(1);
+                const snippet = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
+                console.error('[notifications.send] non-JSON response', { status: res.status, elapsed, body: text.slice(0, 2000) });
+                const err = new Error(`HTTP ${res.status}（${elapsed}s）${snippet ? '：' + snippet : ''}`);
+                err.status = res.status;
+                throw err;
+            }
+        },
         importPreview: async (file) => {
             const formData = new FormData();
             formData.append('file', file);

@@ -11,17 +11,56 @@ class Notifications extends ResourceController
 
     protected $format = 'json';
 
+    /**
+     * Wrapper: guarantees every outcome of a send is logged and the client
+     * always receives JSON (never an HTML error page it cannot parse).
+     * Grep the logs by the [Send xxxxxxxx] request id.
+     */
     public function send()
+    {
+        $this->sendReqId = substr(bin2hex(random_bytes(4)), 0, 8);
+        $this->sendStart = microtime(true);
+
+        try {
+            return $this->doSend();
+        } catch (\Throwable $e) {
+            $this->sendLog('error', 'UNCAUGHT ' . get_class($e) . ': ' . $e->getMessage()
+                . ' @ ' . $e->getFile() . ':' . $e->getLine());
+            $this->sendLog('error', 'Stack trace: ' . $e->getTraceAsString());
+            return $this->response->setStatusCode(500)->setJSON([
+                'status'   => 500,
+                'success'  => false,
+                'message'  => '發送過程發生系統錯誤（追蹤碼 ' . $this->sendReqId . '）：' . $e->getMessage(),
+                'request_id' => $this->sendReqId,
+                'messages' => ['error' => $e->getMessage()],
+            ]);
+        }
+    }
+
+    private string $sendReqId = '-';
+    private float $sendStart = 0.0;
+
+    private function sendLog(string $level, string $msg): void
+    {
+        $elapsed = $this->sendStart ? round(microtime(true) - $this->sendStart, 2) : 0;
+        log_message($level, "[Send {$this->sendReqId}] (+{$elapsed}s) {$msg}");
+    }
+
+    private function doSend()
     {
         $user = $this->getCurrentUser();
         if (!$user) {
+            $this->sendLog('warning', 'Unauthorized: no current user');
             return $this->failUnauthorized();
         }
 
         $userId = (int)$user['id'];
+        $this->sendLog('info', "========== Send Started ========== user_id={$userId} username=" . ($user['username'] ?? '?')
+            . ' php_max_execution_time=' . ini_get('max_execution_time'));
 
         // Check if user is suspended
         if (!empty($user['is_suspended'])) {
+            $this->sendLog('warning', 'Rejected: user is suspended');
             $notice = !empty($user['suspend_notice'])
                 ? $user['suspend_notice']
                 : '您的帳號目前已被暫停使用，請聯絡管理員。';
@@ -36,6 +75,7 @@ class Notifications extends ResourceController
 
         $json = $this->request->getJSON();
         if (!$json || !isset($json->template_id)) {
+            $this->sendLog('warning', 'Rejected: template_id missing. Raw body length=' . strlen((string)$this->request->getBody()));
             return $this->failValidationErrors('template_id is required');
         }
 
@@ -48,8 +88,13 @@ class Notifications extends ResourceController
         } elseif (isset($json->recipients) && is_array($json->recipients)) {
             $recipients = $json->recipients;
         } else {
+            $this->sendLog('warning', 'Rejected: recipients/customer_ids missing');
             return $this->failValidationErrors('recipients or customer_ids are required');
         }
+
+        $this->sendLog('info', 'Request: template_id=' . $json->template_id
+            . ' recipients=' . count($recipients)
+            . ' has_xls_import=' . (!empty($json->xls_import->has_import) ? 'yes' : 'no'));
 
         $db = \Config\Database::connect();
 
@@ -57,17 +102,24 @@ class Notifications extends ResourceController
         $accessToken = $user['line_channel_access_token'] ?? '';
 
         if (empty($accessToken)) {
+            $this->sendLog('warning', 'Rejected: LINE access token not configured');
             return $this->fail('LINE API 尚未設定，請先至個人設定頁面填寫 Channel Access Token', 400);
         }
 
         // Pre-flight: a LINE Channel Access Token is a long JWT-like string.
         // A value this short is almost certainly a Channel Secret pasted by mistake.
         $tokenLooksInvalid = strlen(trim($accessToken)) < 100;
+        if ($tokenLooksInvalid) {
+            $this->sendLog('warning', 'Access token looks invalid (length=' . strlen(trim($accessToken)) . ', expected >= 100)');
+        }
 
         // Verify template belongs to this user
         $template = $db->table('templates')->where('id', $json->template_id)->where('user_id', $userId)->get()->getRowArray();
 
-        if (!$template) return $this->failNotFound('Template not found');
+        if (!$template) {
+            $this->sendLog('warning', "Rejected: template {$json->template_id} not found for user {$userId}");
+            return $this->failNotFound('Template not found');
+        }
 
         $sentCount     = 0;
         $skippedCount  = 0;
@@ -95,6 +147,9 @@ class Notifications extends ResourceController
 
             // Verify customer belongs to this user
             $customer = $db->table('customers')->where('id', $cid)->where('user_id', $userId)->get()->getRowArray();
+            if (!$customer) {
+                $this->sendLog('warning', "Customer {$cid} not found for user {$userId}, skipped");
+            }
             if ($customer) {
                 // Replace variables - use custom_name or get display_name from line_users
                 $lineUser = $db->table('line_users')->where('line_uid', $customer['line_uid'])->where('user_id', $userId)->get()->getRowArray();
@@ -165,6 +220,14 @@ class Notifications extends ResourceController
                     $sentCount++;
                 } else {
                     $errors[] = "Failed to send to {$customer['custom_name']}: {$errMsg}";
+                    $this->sendLog('error', "LINE push failed: customer_id={$customer['id']} line_uid={$customer['line_uid']}"
+                        . ' http_code=' . ($lineResult['http_code'] ?? '?') . " error={$errMsg} detail=" . mb_substr((string)$errDetail, 0, 500));
+                }
+
+                $processed = $sentCount + count($errors) + $skippedCount;
+                if ($processed % 50 === 0) {
+                    $this->sendLog('info', "Progress: {$processed}/" . count($recipients)
+                        . " sent={$sentCount} failed=" . count($errors) . " skipped={$skippedCount}");
                 }
 
                 // Collect data for send_log_recipients
@@ -183,6 +246,9 @@ class Notifications extends ResourceController
                 ];
             }
         }
+
+        $this->sendLog('info', 'LINE loop finished: sent=' . $sentCount . ' failed=' . count($errors)
+            . ' skipped=' . $skippedCount . '; writing send_logs ...');
 
         // Create send_log record
         $xlsImport = $json->xls_import ?? null;
@@ -209,7 +275,14 @@ class Notifications extends ResourceController
             foreach ($logRecipients as &$r) {
                 $r['send_log_id'] = $sendLogId;
             }
-            $db->table('send_log_recipients')->insertBatch($logRecipients);
+            try {
+                $db->table('send_log_recipients')->insertBatch($logRecipients);
+            } catch (\Throwable $e) {
+                // Messages were ALREADY pushed to LINE at this point; only the audit log failed.
+                // (e.g. migration not run → Unknown column 'http_code')
+                $this->sendLog('error', "send_log_recipients insert FAILED (send_log_id={$sendLogId}, messages already sent): " . $e->getMessage());
+                throw $e;
+            }
         }
 
         // Batch insert duplicate logs (back-fill send_log_id)
@@ -217,7 +290,12 @@ class Notifications extends ResourceController
             foreach ($duplicateLogs as &$dl) {
                 $dl['send_log_id'] = $sendLogId;
             }
-            $db->table('send_duplicate_logs')->insertBatch($duplicateLogs);
+            try {
+                $db->table('send_duplicate_logs')->insertBatch($duplicateLogs);
+            } catch (\Throwable $e) {
+                $this->sendLog('error', "send_duplicate_logs insert FAILED (send_log_id={$sendLogId}): " . $e->getMessage());
+                throw $e;
+            }
         }
 
         $message = "成功發送給 $sentCount 位客戶";
@@ -241,7 +319,11 @@ class Notifications extends ResourceController
             $message .= "，$failedCount 筆失敗（主要為 {$topReason}，詳見發送紀錄）";
         }
 
+        $this->sendLog('info', "========== Send Finished ========== send_log_id={$sendLogId} {$message}"
+            . ' reasons=' . json_encode($reasonCount));
+
         return $this->respond([
+            'request_id'     => $this->sendReqId,
             'success'        => $sentCount > 0 || $skippedCount > 0,
             'sent_count'     => $sentCount,
             'skipped_count'  => $skippedCount,
