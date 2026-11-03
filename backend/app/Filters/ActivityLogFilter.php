@@ -44,9 +44,10 @@ class ActivityLogFilter implements FilterInterface
         $skipPatterns = [
             '/api/activity-logs',  // Don't log the logs endpoint itself
             '/api/stats',          // Skip frequent stats calls
+            '/api/system/',        // Log API (token based, no user)
         ];
         foreach ($skipPatterns as $pattern) {
-            if (strpos($endpoint, $pattern) === 0) {
+            if (strpos($endpoint, $pattern) !== false) {
                 return;
             }
         }

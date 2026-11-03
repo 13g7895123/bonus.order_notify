@@ -75,6 +75,11 @@ $routes->group('api', ['namespace' => 'App\Controllers\Api'], function ($routes)
     $routes->get('activity-logs/(:num)', 'ActivityLogs::show/$1');
     $routes->delete('activity-logs', 'ActivityLogs::clear');
 
+    // System Logs (token protected via LOG_API_TOKEN, read-only)
+    $routes->get('system/logs', 'SystemLogs::index');
+    $routes->get('system/logs/files', 'SystemLogs::files');
+    $routes->get('system/diagnostics', 'SystemLogs::diagnostics');
+
     // User Applications
     $routes->post('applications/apply', 'UserApplications::apply'); // Public - no auth (with invite code)
     $routes->post('applications/invite', 'UserApplications::inviteUsers'); // Logged-in users
