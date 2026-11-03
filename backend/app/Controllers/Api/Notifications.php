@@ -386,11 +386,32 @@ class Notifications extends ResourceController
             return $this->failValidationErrors('請上傳 XLS 或 XLSX 格式的檔案');
         }
 
+        // 限制檔案大小，避免特製的大檔案耗盡記憶體
+        $maxBytes = 10 * 1024 * 1024;
+        if ($file->getSize() > $maxBytes) {
+            log_message('error', '[Import XLS] FAILED: File too large: ' . $file->getSize() . ' bytes');
+            return $this->failValidationErrors('檔案大小不可超過 10MB');
+        }
+
         try {
             log_message('debug', '[Import XLS] Loading spreadsheet from: ' . $file->getTempName());
 
-            // Explicitly set reader if possible to avoid detection issues with temp files
-            $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($file->getTempName());
+            // 只允許 Xlsx / Xls reader：IOFactory::load() 會依檔案內容自動選 reader，
+            // 不限制的話 ODS、Gnumeric、SpreadsheetML 等 reader 也能被上傳檔案觸發
+            $tempPath = $file->getTempName();
+            $allowedReaders = [
+                \PhpOffice\PhpSpreadsheet\IOFactory::READER_XLSX,
+                \PhpOffice\PhpSpreadsheet\IOFactory::READER_XLS,
+            ];
+            try {
+                $readerType = \PhpOffice\PhpSpreadsheet\IOFactory::identify($tempPath, $allowedReaders);
+            } catch (\PhpOffice\PhpSpreadsheet\Reader\Exception $e) {
+                log_message('error', '[Import XLS] FAILED: File content is not XLS/XLSX: ' . $e->getMessage());
+                return $this->failValidationErrors('檔案內容不是有效的 XLS 或 XLSX 格式');
+            }
+            log_message('debug', '[Import XLS] Reader type: ' . $readerType);
+
+            $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::createReader($readerType)->load($tempPath);
             $worksheet = $spreadsheet->getActiveSheet();
             $rows = $worksheet->toArray();
 
