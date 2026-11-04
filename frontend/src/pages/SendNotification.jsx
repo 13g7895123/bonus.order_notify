@@ -4,6 +4,12 @@ import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import { Send, CheckCircle, AlertCircle, Upload, Users, Info, Settings, X, Eye, Search, Download } from 'lucide-react';
 
+const RESULT_TONES = {
+    success: { bg: 'rgba(16, 185, 129, 0.1)', color: 'var(--success)', border: 'var(--success)' },
+    warning: { bg: 'rgba(234, 179, 8, 0.1)', color: '#b45309', border: '#f59e0b' },
+    error:   { bg: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', border: 'var(--danger)' },
+};
+
 const SendNotification = () => {
     const [templates, setTemplates] = useState([]);
     const [customers, setCustomers] = useState([]);
@@ -215,11 +221,18 @@ const SendNotification = () => {
                 xls_import: xlsImport
             });
             if (res.suspended) {
-                setResult({ success: false, message: res.notice, suspended: true });
+                setResult({ success: false, tone: 'warning', message: res.notice, suspended: true });
             } else {
                 const msg = res.message || res.messages?.error || '發送失敗，請確認 LINE 設定是否正確';
+                // status: success | partial | failed（舊版後端沒有 status 時退回 success 判斷）
+                const status = res.status || (res.success ? 'success' : 'failed');
+                // 全部被「今日已發送」略過、實際一筆都沒送，也要提醒使用者
+                const allSkipped = status === 'success' && (res.sent_count ?? 0) === 0 && (res.skipped_count ?? 0) > 0;
                 setResult({
-                    success: res.success ?? false,
+                    success: status === 'success' && !allSkipped,
+                    tone: status === 'success' ? (allSkipped ? 'warning' : 'success') : status === 'partial' ? 'warning' : 'error',
+                    title: status === 'partial' ? '部分發送失敗' : status === 'failed' ? '發送失敗' : allSkipped ? '沒有送出任何訊息' : null,
+                    quotaNotice: res.quota_exceeded ? res.quota_notice : null,
                     message: msg,
                     errors: Array.isArray(res.errors) ? res.errors : [],
                 });
@@ -229,7 +242,7 @@ const SendNotification = () => {
             const hint = e?.status === 504 || e?.status === 502
                 ? '（伺服器處理逾時，訊息可能已部分送出，請先到發送紀錄確認再重送）'
                 : '';
-            setResult({ success: false, message: `發送失敗：${e?.message || '網路錯誤'}${hint}` });
+            setResult({ success: false, tone: 'error', message: `發送失敗：${e?.message || '網路錯誤'}${hint}` });
         }
 
         setSending(false);
@@ -735,16 +748,14 @@ const SendNotification = () => {
 
                         </div>
 
-                        {result && (
+                        {result && (() => {
+                            const tone = RESULT_TONES[result.tone || (result.success ? 'success' : 'error')];
+                            return (
                             <div style={{
                                 padding: '1rem',
-                                backgroundColor: result.suspended
-                                    ? 'rgba(234,179,8,0.1)'
-                                    : result.success ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                                color: result.suspended
-                                    ? '#b45309'
-                                    : result.success ? 'var(--success)' : 'var(--danger)',
-                                borderLeft: `4px solid ${result.suspended ? '#f59e0b' : result.success ? 'var(--success)' : 'var(--danger)'}`,
+                                backgroundColor: tone.bg,
+                                color: tone.color,
+                                borderLeft: `4px solid ${tone.border}`,
                                 borderRadius: '4px',
                                 marginBottom: '1.5rem',
                                 display: 'flex',
@@ -755,6 +766,17 @@ const SendNotification = () => {
                                 <div>
                                     {result.suspended && (
                                         <div style={{ fontWeight: '600', marginBottom: '4px' }}>帳號已暫停使用</div>
+                                    )}
+                                    {result.title && (
+                                        <div style={{ fontWeight: '600', marginBottom: '4px' }}>{result.title}</div>
+                                    )}
+                                    {result.quotaNotice && (
+                                        <div style={{
+                                            fontWeight: '600', marginBottom: '8px', padding: '8px 10px', borderRadius: '4px',
+                                            backgroundColor: 'rgba(239, 68, 68, 0.12)', color: 'var(--danger)',
+                                        }}>
+                                            ⚠ {result.quotaNotice}
+                                        </div>
                                     )}
                                     <span>{result.message}</span>
                                     {result.errors && result.errors.length > 0 && (
@@ -769,7 +791,8 @@ const SendNotification = () => {
                                     )}
                                 </div>
                             </div>
-                        )}
+                            );
+                        })()}
 
                         <Button
                             onClick={handlePreSend}

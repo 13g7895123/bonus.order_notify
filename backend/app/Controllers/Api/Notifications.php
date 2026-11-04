@@ -7,6 +7,9 @@ use App\Traits\AuthTrait;
 
 class Notifications extends ResourceController
 {
+    /** 月額度用完後中止發送的收件人，寫入 send_log_recipients.error_message */
+    public const ABORTED_MESSAGE = '未送出：LINE 推播額度已用完，已中止後續發送';
+
     use AuthTrait;
 
     protected $format = 'json';
@@ -128,6 +131,8 @@ class Notifications extends ResourceController
 
         $sentCount     = 0;
         $skippedCount  = 0;
+        $abortedCount  = 0;     // 月額度用完後未送出的筆數
+        $quotaExceeded = false; // LINE 回 429 monthly limit 後，其餘收件人不再呼叫 LINE
         $errors        = [];
         $logRecipients = [];
         $duplicateLogs = [];
@@ -200,6 +205,25 @@ class Notifications extends ResourceController
                 }
                 // ───────────────────────────────────────────────────────────
 
+                // 月額度已用完：後續每一筆都必然失敗，直接標記未送出，不再呼叫 LINE
+                if ($quotaExceeded) {
+                    $abortedCount++;
+                    $logRecipients[] = [
+                        'customer_id'          => $customer['id'],
+                        'customer_name'        => $displayName,
+                        'line_uid'             => $customer['line_uid'],
+                        'final_variables_json' => json_encode((array)$recipientVariables, JSON_UNESCAPED_UNICODE),
+                        'is_xls_matched'       => $isFromXls ? 1 : 0,
+                        'message_content'      => $content,
+                        'sent_success'         => 0,
+                        'http_code'            => null,
+                        'error_message'        => self::ABORTED_MESSAGE,
+                        'error_detail'         => null,
+                        'created_at'           => date('Y-m-d H:i:s'),
+                    ];
+                    continue;
+                }
+
                 // Call LINE Message API
                 $lineResult = $this->sendLineMessage($accessToken, $customer['line_uid'], $content);
 
@@ -231,6 +255,11 @@ class Notifications extends ResourceController
                     $errors[] = "Failed to send to {$customer['custom_name']}: {$errMsg}";
                     $this->sendLog('error', "LINE push failed: customer_id={$customer['id']} line_uid={$customer['line_uid']}"
                         . ' http_code=' . ($lineResult['http_code'] ?? '?') . " error={$errMsg} detail=" . mb_substr((string)$errDetail, 0, 500));
+
+                    if (!empty($lineResult['quota_exceeded'])) {
+                        $quotaExceeded = true;
+                        $this->sendLog('warning', 'LINE monthly quota exceeded; remaining recipients will be marked as not sent');
+                    }
                 }
 
                 $processed = $sentCount + count($errors) + $skippedCount;
@@ -257,7 +286,7 @@ class Notifications extends ResourceController
         }
 
         $this->sendLog('info', 'LINE loop finished: sent=' . $sentCount . ' failed=' . count($errors)
-            . ' skipped=' . $skippedCount . '; writing send_logs ...');
+            . ' skipped=' . $skippedCount . ' aborted=' . $abortedCount . '; writing send_logs ...');
 
         // Create send_log record
         $xlsImport = $json->xls_import ?? null;
@@ -316,7 +345,7 @@ class Notifications extends ResourceController
         $failedCount = 0;
         $reasonCount = [];
         foreach ($logRecipients as $r) {
-            if (!$r['sent_success']) {
+            if (!$r['sent_success'] && $r['error_message'] !== self::ABORTED_MESSAGE) {
                 $failedCount++;
                 $key = 'HTTP ' . ($r['http_code'] ?? '?');
                 $reasonCount[$key] = ($reasonCount[$key] ?? 0) + 1;
@@ -327,13 +356,36 @@ class Notifications extends ResourceController
             $topReason = array_key_first($reasonCount);
             $message .= "，$failedCount 筆失敗（主要為 {$topReason}，詳見發送紀錄）";
         }
+        if ($abortedCount > 0) {
+            $message .= "，$abortedCount 筆因額度不足未送出";
+        }
+
+        $notSent = $failedCount + $abortedCount;
+        // success: 全部送達或略過；partial: 有送達也有未送達；failed: 一筆都沒送達
+        if ($notSent === 0) {
+            $status = 'success';
+        } elseif ($sentCount > 0) {
+            $status = 'partial';
+        } else {
+            $status = 'failed';
+        }
+
+        $quotaNotice = null;
+        if ($quotaExceeded) {
+            $quotaNotice = "LINE 官方帳號本月的推播訊息額度已用完，共 {$notSent} 位客戶未收到通知。"
+                . '請至 LINE Official Account Manager 升級方案或加購訊息則數，或等待下個月額度重置後再重新發送。';
+        }
 
         $this->sendLog('info', "========== Send Finished ========== send_log_id={$sendLogId} {$message}"
             . ' reasons=' . json_encode($reasonCount));
 
         return $this->respond([
             'request_id'     => $this->sendReqId,
-            'success'        => $sentCount > 0 || $skippedCount > 0,
+            'success'        => $status === 'success',
+            'status'         => $status,
+            'quota_exceeded' => $quotaExceeded,
+            'quota_notice'   => $quotaNotice,
+            'aborted_count'  => $abortedCount,
             'sent_count'     => $sentCount,
             'skipped_count'  => $skippedCount,
             'failed_count'   => $failedCount,
@@ -678,12 +730,15 @@ class Notifications extends ResourceController
             }
         }
 
+        // 429 有兩種：月額度用完（message 為 "You have reached your monthly limit."）與短時間限流
+        $quotaExceeded = $httpCode === 429 && stripos((string)($body['message'] ?? ''), 'monthly limit') !== false;
+
         // Map the common status codes to an actionable hint.
         $hint = match ($httpCode) {
             400 => 'line_uid 無效或對方未加官方帳號為好友／已封鎖',
             401 => 'Channel Access Token 無效、過期或被撤銷',
             403 => '此 Channel 沒有推播權限（方案或權限設定問題）',
-            429 => '已達 LINE 推播訊息額度上限',
+            429 => $quotaExceeded ? '已達 LINE 推播訊息額度上限' : 'LINE 發送頻率過高（限流），請稍後重試',
             500, 502, 503 => 'LINE 伺服器暫時異常，可稍後重試',
             default => '',
         };
@@ -692,6 +747,7 @@ class Notifications extends ResourceController
             'success'   => false,
             'http_code' => $httpCode,
             'error'     => "HTTP {$httpCode}: {$apiMsg}" . ($hint ? " — {$hint}" : ''),
+            'quota_exceeded' => $quotaExceeded,
             'detail'    => is_string($response) ? mb_substr($response, 0, 2000) : json_encode($body, JSON_UNESCAPED_UNICODE),
         ];
     }
