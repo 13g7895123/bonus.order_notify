@@ -118,6 +118,8 @@ server {
     set_real_ip_from 172.16.0.0/12;
     set_real_ip_from 192.168.0.0/16;
     set_real_ip_from 127.0.0.1;
+    # NPM 主機（與正式機同一台）以公網 IP 轉發進來，來源會是這個位址
+    set_real_ip_from 139.162.15.125;
     real_ip_header X-Real-IP;
 
     # API requests go to backend
