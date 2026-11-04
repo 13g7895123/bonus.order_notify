@@ -54,6 +54,10 @@ jobs:
                 docker compose logs --tail=50 php db
                 exit 1
               fi
+              # nginx 只在啟動時解析 fastcgi_pass 的 php 主機名稱，php 重建後 IP 會變，
+              # backend-nginx 不重建會連到舊 IP 而回 502
+              echo "=== php 已重建，重建 backend-nginx 以重新解析 php 位址 ==="
+              docker compose up -d --no-deps --force-recreate backend-nginx
             fi
             echo "=== 後端執行環境：$(docker compose exec -T php printenv CI_ENVIRONMENT) ==="
 
