@@ -180,7 +180,15 @@ class App extends BaseConfig
      *
      * @var array<string, string>
      */
-    public array $proxyIPs = [];
+    // 正式環境請求鏈：NPM → proxy 容器 → backend-nginx → php-fpm，
+    // php 看到的 REMOTE_ADDR 是 proxy 容器的 docker 內網 IP（如 172.25.0.4）。
+    // proxy 容器已用 realip 還原 NPM 傳來的客戶端 IP，並以 X-Real-IP 轉給後端；
+    // 只有來源是內網網段時才採信，直接打對外 port 的請求無法偽造。
+    public array $proxyIPs = [
+        '10.0.0.0/8'     => 'X-Real-IP',
+        '172.16.0.0/12'  => 'X-Real-IP',
+        '192.168.0.0/16' => 'X-Real-IP',
+    ];
 
     /**
      * --------------------------------------------------------------------------

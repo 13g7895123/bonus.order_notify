@@ -111,6 +111,15 @@ server {
     listen 80;
     server_name localhost;
 
+    # 前面還有 Nginx Proxy Manager（NPM）。信任來自內網/docker 網段的 X-Real-IP，
+    # 讓 \$remote_addr 還原成真實客戶端 IP，再透過下方 X-Real-IP 傳給後端。
+    # NPM 預設會以 \$remote_addr 覆寫 X-Real-IP，客戶端無法偽造。
+    set_real_ip_from 10.0.0.0/8;
+    set_real_ip_from 172.16.0.0/12;
+    set_real_ip_from 192.168.0.0/16;
+    set_real_ip_from 127.0.0.1;
+    real_ip_header X-Real-IP;
+
     # API requests go to backend
     location /api/ {
         proxy_pass http://backend;
