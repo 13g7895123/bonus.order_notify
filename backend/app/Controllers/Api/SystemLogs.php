@@ -8,7 +8,8 @@ use CodeIgniter\RESTful\ResourceController;
  * Read-only operational log API, protected by a static token.
  *
  * Token: created / refreshed / revoked by an admin in the back office (LogTokens controller,
- * table log_api_tokens). Send it as header "X-Log-Token: nlog_..." or "Authorization: Bearer nlog_...".
+ * table log_api_tokens). A token is valid only on the day it was created and is auto-revoked
+ * after midnight. Send it as header "X-Log-Token: nlog_..." or "Authorization: Bearer nlog_...".
  *
  * Endpoints:
  *   GET /api/system/logs/files                     list log files
@@ -43,7 +44,8 @@ class SystemLogs extends ResourceController
             return $this->unauthorized();
         }
 
-        $db  = \Config\Database::connect();
+        $db = \Config\Database::connect();
+        LogTokens::expireStale($db);
         $row = $db->table('log_api_tokens')
             ->where('token_hash', LogTokens::hashToken($given))
             ->get()->getRowArray();

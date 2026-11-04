@@ -5,10 +5,16 @@ import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import { KeyRound, RefreshCw, Plus, Ban } from 'lucide-react';
 
+// 本地日期 YYYY-MM-DD，作為預設 Token 名稱（Token 也只在當天有效）
+const today = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
 const LogApiTokens = () => {
     const [tokens, setTokens] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [name, setName] = useState('');
+    const [name, setName] = useState(today);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
 
@@ -53,12 +59,11 @@ const LogApiTokens = () => {
 
     const handleCreate = async (e) => {
         e.preventDefault();
-        if (!name.trim()) return;
         setBusy(true);
         try {
             const res = await api.logTokens.create(name.trim());
             if (res.token) {
-                setName('');
+                setName(today());
                 await showPlaintext('Token 已建立', res.token);
                 load();
             } else {
@@ -108,6 +113,7 @@ const LogApiTokens = () => {
                 <p style={{ color: 'var(--text-secondary)', marginTop: '4px' }}>
                     用於查詢系統 log 的唯讀 API（<code>/api/system/logs</code>、<code>/api/system/diagnostics</code>）。
                     請求時帶入 header <code>X-Log-Token: &lt;token&gt;</code>。
+                    Token 只在建立當天有效，過午夜自動註銷。
                 </p>
             </div>
 
@@ -115,10 +121,10 @@ const LogApiTokens = () => {
                 <form onSubmit={handleCreate} style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
                     <input
                         value={name} onChange={e => setName(e.target.value)} maxLength={100}
-                        placeholder="Token 名稱（例如：維運查詢、Claude 除錯）"
+                        placeholder="Token 名稱（留空則為當天日期）"
                         style={{ flex: '1 1 260px', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}
                     />
-                    <Button type="submit" size="sm" disabled={busy || !name.trim()}>
+                    <Button type="submit" size="sm" disabled={busy}>
                         <Plus size={16} /> 建立 Token
                     </Button>
                     <Button type="button" size="sm" variant="secondary" onClick={load}>
@@ -162,7 +168,9 @@ const LogApiTokens = () => {
                                                     backgroundColor: active ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
                                                     color: active ? 'rgb(34,197,94)' : 'rgb(239,68,68)',
                                                 }}>{active ? '使用中' : '已註銷'}</span>
-                                                {!active && <div style={sub}>{t.revoked_at}（{t.revoked_by_name || '-'}）</div>}
+                                                {active
+                                                    ? t.expires_at && <div style={sub}>{t.expires_at} 自動註銷</div>
+                                                    : <div style={sub}>{t.revoked_at}（{t.auto_revoked ? '過午夜自動註銷' : (t.revoked_by_name || '-')}）</div>}
                                             </td>
                                             <td style={td}>{t.created_at}<div style={sub}>{t.created_by_name || '-'}</div></td>
                                             <td style={td}>{t.refreshed_at || '-'}{t.refreshed_at && <div style={sub}>{t.refreshed_by_name || '-'}</div>}</td>
