@@ -203,16 +203,20 @@ class Notifications extends ResourceController
                 // Call LINE Message API
                 $lineResult = $this->sendLineMessage($accessToken, $customer['line_uid'], $content);
 
-                // Log Message with user_id
-                $db->table('messages')->insert([
-                    'user_id' => $userId,
-                    'customer_id' => $customer['id'],
-                    'sender' => 'system',
-                    'content' => $content,
-                    'created_at' => date('Y-m-d H:i:s')
-                ]);
-
                 $success = $lineResult['success'];
+
+                // 只記錄真正送達的訊息：messages 是上方去重檢查的依據，
+                // 失敗也寫入的話（例如 LINE 429 額度用完），補救後重發會被誤判為「今日已發送」。
+                // 失敗明細仍保存在 send_log_recipients。
+                if ($success) {
+                    $db->table('messages')->insert([
+                        'user_id' => $userId,
+                        'customer_id' => $customer['id'],
+                        'sender' => 'system',
+                        'content' => $content,
+                        'created_at' => date('Y-m-d H:i:s')
+                    ]);
+                }
 
                 // If the token is structurally invalid, make every failure say so explicitly.
                 $errMsg    = $lineResult['error'] ?? null;
