@@ -5,6 +5,24 @@ import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { Activity, RefreshCw, Trash2, Filter, ChevronLeft, ChevronRight, Eye, X, AlertCircle } from 'lucide-react';
 
+// 批次發送 API 回 200 但內含失敗筆數：從 response_body 取出摘要（例如 LINE 429 額度用完）
+const getSendIssue = (log) => {
+    if (!log?.response_body || !String(log.endpoint || '').includes('/api/notifications/send')) return null;
+    if (log.response_code < 200 || log.response_code >= 300) return null;
+    try {
+        const b = JSON.parse(log.response_body);
+        const failed = Number(b.failed_count || 0) + Number(b.aborted_count || 0);
+        if (failed <= 0) return null;
+        const reason = b.quota_exceeded ? 'LINE 額度用完' : Object.keys(b.failure_reasons || {})[0] || '';
+        return {
+            label: `${b.status === 'partial' ? '部分失敗' : '發送失敗'} ${failed} 筆${reason ? `（${reason}）` : ''}`,
+            body: b,
+        };
+    } catch {
+        return null;
+    }
+};
+
 const ActivityLogs = () => {
     const [logs, setLogs] = useState([]);
     const [stats, setStats] = useState(null);
@@ -255,12 +273,14 @@ const ActivityLogs = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {logs.map(log => (
+                            {logs.map(log => {
+                                const sendIssue = getSendIssue(log);
+                                return (
                                 <tr
                                     key={log.id}
                                     style={{
                                         borderBottom: '1px solid rgba(255,255,255,0.03)',
-                                        backgroundColor: (log.response_code < 200 || log.response_code >= 300) ? 'rgba(239, 68, 68, 0.05)' : 'transparent'
+                                        backgroundColor: (log.response_code < 200 || log.response_code >= 300 || sendIssue) ? 'rgba(239, 68, 68, 0.05)' : 'transparent'
                                     }}
                                 >
                                     <td style={{ padding: '0.75rem 1rem', whiteSpace: 'nowrap' }}>{log.created_at}</td>
@@ -292,6 +312,11 @@ const ActivityLogs = () => {
                                             {(log.response_code < 200 || log.response_code >= 300) && <AlertCircle size={14} />}
                                             {log.response_code || '-'}
                                         </span>
+                                        {sendIssue && (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px', fontSize: '0.75rem', color: 'var(--danger)', whiteSpace: 'nowrap' }}>
+                                                <AlertCircle size={12} /> {sendIssue.label}
+                                            </div>
+                                        )}
                                     </td>
                                     <td style={{ padding: '0.75rem 1rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{log.ip_address}</td>
                                     <td style={{ padding: '0.75rem 1rem' }}>
@@ -300,7 +325,7 @@ const ActivityLogs = () => {
                                             style={{
                                                 background: 'none',
                                                 border: 'none',
-                                                color: (log.response_code < 200 || log.response_code >= 300) ? 'var(--danger)' : 'var(--accent-primary)',
+                                                color: (log.response_code < 200 || log.response_code >= 300 || sendIssue) ? 'var(--danger)' : 'var(--accent-primary)',
                                                 cursor: 'pointer',
                                                 padding: '4px'
                                             }}
@@ -310,7 +335,7 @@ const ActivityLogs = () => {
                                         </button>
                                     </td>
                                 </tr>
-                            ))}
+                            ); })}
                         </tbody>
                     </table>
                 )}
@@ -443,6 +468,11 @@ const ActivityLogs = () => {
                                             }}>
                                                 {detailLog.response_code}
                                             </span>
+                                            {getSendIssue(detailLog) && (
+                                                <div style={{ color: 'var(--danger)', fontSize: '0.85rem', marginTop: '2px' }}>
+                                                    {getSendIssue(detailLog).label}
+                                                </div>
+                                            )}
                                         </div>
                                         <div style={{ gridColumn: '1 / -1' }}>
                                             <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '4px' }}>Endpoint</div>
@@ -479,8 +509,8 @@ const ActivityLogs = () => {
                                         </pre>
                                     </div>
 
-                                    {/* Response Body (only for non-200) */}
-                                    {(detailLog.response_code < 200 || detailLog.response_code >= 300) && (
+                                    {/* Response Body（非 2xx，或發送 API 有失敗筆數） */}
+                                    {(detailLog.response_code < 200 || detailLog.response_code >= 300 || getSendIssue(detailLog)) && (
                                         <div>
                                             <h3 style={{
                                                 fontSize: '1rem',

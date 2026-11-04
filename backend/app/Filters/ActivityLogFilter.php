@@ -124,6 +124,17 @@ class ActivityLogFilter implements FilterInterface
             }
         }
 
+        // 批次發送 API 即使收件人推播失敗（例如 LINE 429 月額度用完）也回 200，
+        // 失敗資訊在回應內容裡；有失敗或未送出時也存下回應內容，操作紀錄才看得到原因。
+        if (!isset($insertData['response_body']) && strpos($endpoint, '/api/notifications/send') !== false) {
+            $responseBody = (string) $response->getBody();
+            $decoded = json_decode($responseBody, true);
+            if (is_array($decoded)
+                && (($decoded['failed_count'] ?? 0) > 0 || ($decoded['aborted_count'] ?? 0) > 0)) {
+                $insertData['response_body'] = substr($responseBody, 0, 65535);
+            }
+        }
+
         $db->table('activity_logs')->insert($insertData);
     }
 
