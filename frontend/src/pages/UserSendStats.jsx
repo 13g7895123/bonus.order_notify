@@ -428,7 +428,9 @@ const UserSendStats = () => {
                 <h1 style={{ fontSize: '2rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <BarChart2 size={28} /> 發送統計
                 </h1>
-                <p style={{ color: 'var(--text-secondary)' }}>查看所有使用者的訊息發送狀況並管理帳號暫停。</p>
+                <p style={{ color: 'var(--text-secondary)' }}>
+                    查看所有使用者的訊息發送狀況並管理帳號暫停。常用時段依系統留存且至少成功發送 1 位收件者的批次計算，不受上方日期篩選影響。
+                </p>
             </div>
 
             {/* Controls */}
@@ -544,13 +546,21 @@ const UserSendStats = () => {
                                     {mode === 'last30' && (
                                         <th style={{ ...thStyle, textAlign: 'center' }}>涵蓋時間範圍</th>
                                     )}
+                                    <th style={{ ...thStyle, textAlign: 'center' }}>常用時段</th>
                                     <th style={{ ...thStyle, textAlign: 'center' }}>上次發送</th>
                                     <th style={{ ...thStyle, textAlign: 'center' }}>操作</th>
                                     <th style={{ ...thStyle, textAlign: 'center' }}>明細</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {users.map(u => (
+                                {users.map(u => {
+                                    const timeStats = u.send_time_stats || {};
+                                    const periodCounts = timeStats.period_counts || {};
+                                    const timeTooltip = timeStats.total
+                                        ? `全部期間成功發送批次的時段分布（共 ${timeStats.total} 次）\n凌晨 00:00–05:59：${periodCounts['凌晨'] || 0} 次\n上午 06:00–11:59：${periodCounts['上午'] || 0} 次\n下午 12:00–17:59：${periodCounts['下午'] || 0} 次\n晚上 18:00–23:59：${periodCounts['晚上'] || 0} 次`
+                                        : '尚無可統計的發送批次記錄（僅統計系統留存的批次）';
+
+                                    return (
                                     <tr key={u.id} style={{
                                         borderBottom: '1px solid var(--border-color)',
                                         backgroundColor: u.is_suspended ? 'rgba(220,38,38,0.05)' : 'transparent',
@@ -625,6 +635,25 @@ const UserSendStats = () => {
                                             </td>
                                         )}
 
+                                        {/* Typical send time */}
+                                        <td
+                                            title={timeTooltip}
+                                            style={{ ...tdStyle, textAlign: 'center', cursor: 'help', whiteSpace: 'nowrap' }}
+                                        >
+                                            {timeStats.total ? (
+                                                <>
+                                                    <div style={{ fontWeight: '600', color: 'var(--accent-primary)' }}>
+                                                        {timeStats.usual_period}
+                                                    </div>
+                                                    <div style={{ marginTop: '3px', color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
+                                                        {timeStats.usual_count} / {timeStats.total} 次 · {timeStats.usual_percent}%
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>無記錄</span>
+                                            )}
+                                        </td>
+
                                         {/* Last send */}
                                         <td style={{ ...tdStyle, textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                                             {u.last_send_at ? formatDate(u.last_send_at) : '-'}
@@ -680,7 +709,8 @@ const UserSendStats = () => {
                                             </button>
                                         </td>
                                     </tr>
-                                ))}
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>

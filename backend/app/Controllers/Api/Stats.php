@@ -131,9 +131,72 @@ class Stats extends ResourceController
 
         $users = $usersQuery->orderBy('name', 'ASC')->get()->getResultArray();
 
+        // Use one row per successful send operation (rather than one row per
+        // recipient) to avoid making large broadcasts look unusually frequent.
+        // Recipient timestamps make older, long-running sends more accurate;
+        // new send_logs also record the request start time.
+        $sendTimeRows = $db->query("
+            SELECT
+                user_id,
+                COUNT(*) AS total,
+                SUM(CASE WHEN HOUR(send_at) BETWEEN 0 AND 5 THEN 1 ELSE 0 END) AS late_night,
+                SUM(CASE WHEN HOUR(send_at) BETWEEN 6 AND 11 THEN 1 ELSE 0 END) AS morning,
+                SUM(CASE WHEN HOUR(send_at) BETWEEN 12 AND 17 THEN 1 ELSE 0 END) AS afternoon,
+                SUM(CASE WHEN HOUR(send_at) BETWEEN 18 AND 23 THEN 1 ELSE 0 END) AS evening
+            FROM (
+                SELECT
+                    logs.id,
+                    logs.user_id,
+                    CASE
+                        WHEN MIN(recipients.created_at) IS NULL OR logs.created_at <= MIN(recipients.created_at)
+                            THEN logs.created_at
+                        ELSE MIN(recipients.created_at)
+                    END AS send_at
+                FROM send_logs AS logs
+                LEFT JOIN send_log_recipients AS recipients ON recipients.send_log_id = logs.id
+                WHERE logs.recipients_sent > 0
+                GROUP BY logs.id, logs.user_id, logs.created_at
+            ) AS send_events
+            WHERE send_at IS NOT NULL
+            GROUP BY user_id
+        ")->getResultArray();
+
+        $sendTimeStats = [];
+        foreach ($sendTimeRows as $row) {
+            $periodCounts = [
+                '凌晨' => (int)$row['late_night'],
+                '上午' => (int)$row['morning'],
+                '下午' => (int)$row['afternoon'],
+                '晚上' => (int)$row['evening'],
+            ];
+            $total = (int)$row['total'];
+            $mostCount = $total > 0 ? max($periodCounts) : 0;
+            $mostPeriods = $mostCount > 0
+                ? array_keys(array_filter($periodCounts, static function ($count) use ($mostCount) {
+                    return $count === $mostCount;
+                }))
+                : [];
+
+            $sendTimeStats[(int)$row['user_id']] = [
+                'total' => $total,
+                'usual_period' => implode('、', $mostPeriods),
+                'usual_count' => $mostCount,
+                'usual_percent' => $total > 0 ? (int)round($mostCount * 100 / $total) : 0,
+                'period_counts' => $periodCounts,
+            ];
+        }
+
         // Compute stats per user
         foreach ($users as &$user) {
             $uid = (int)$user['id'];
+
+            $user['send_time_stats'] = $sendTimeStats[$uid] ?? [
+                'total' => 0,
+                'usual_period' => null,
+                'usual_count' => 0,
+                'usual_percent' => 0,
+                'period_counts' => ['凌晨' => 0, '上午' => 0, '下午' => 0, '晚上' => 0],
+            ];
 
             if ($mode === 'all') {
                 $user['send_count'] = $db->table('messages')

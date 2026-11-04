@@ -57,6 +57,9 @@ class Notifications extends ResourceController
         }
 
         $userId = (int)$user['id'];
+        // Capture when the send request starts; the audit row is written only
+        // after LINE finishes processing every recipient.
+        $sendStartedAt = date('Y-m-d H:i:s');
         $this->sendLog('info', "========== Send Started ========== user_id={$userId} username=" . ($user['username'] ?? '?')
             . ' php_max_execution_time=' . ini_get('max_execution_time'));
 
@@ -268,7 +271,7 @@ class Notifications extends ResourceController
             'xls_not_matched_count' => (int)($xlsImport->not_matched_customer_count ?? 0),
             'xls_not_found_count'   => (int)($xlsImport->not_found_count ?? 0),
             'xls_not_found_names'   => json_encode($xlsImport->not_found_names ?? [], JSON_UNESCAPED_UNICODE),
-            'created_at'            => date('Y-m-d H:i:s'),
+            'created_at'            => $sendStartedAt,
         ]);
         $sendLogId = $db->insertID();
 
